@@ -14,6 +14,12 @@ No dependencies so far.
 
 - [MyPy](https://mypy.readthedocs.io/en/stable/).
 
+Testing:
+
+```
+python -m unittest discover -s test
+```
+
 
 ## Documentation
 
