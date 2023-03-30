@@ -1,0 +1,172 @@
+from .transaction import Transaction
+from .frame import VersionFrame
+from .frame import SnapshotStorage
+from .version import VersionID
+from .identity import SequentialIDGenerator
+from typing import Optional
+
+class Database:
+    # TODO: This needs to be wrapped in a lock
+    """
+    Sequential generator for object identifiers - unique for each object
+    during the lifetime of the database.
+    """
+    object_id_generator: SequentialIDGenerator
+    
+    # TODO: This needs to be wrapped in a lock
+    """
+    Sequential generator for version identifiers - unique for each
+    transaction during the lifetime of the database.
+
+    """ 
+    version_id_generator: SequentialIDGenerator
+    
+    storage: SnapshotStorage
+    
+    """
+    List of versions that are represented by version planes in the database.
+    
+    Returned value has at least one element.
+    
+    - Note: The returned order is unspecified. Do not treat it as a
+      sequential historical order.
+    """
+    
+    @property
+    def all_versions(self) -> list[VersionID]:
+        return list(self.storage.frames.keys())
+    
+    # TODO :MAke it this public read-only
+    version_history: list[VersionID]
+    
+    # TODO: [IMPORTANT] Garbage collection of unused versions of graph objects (nodes/edges)
+    
+    # Undo/redo buffers
+    """
+    List of versions of a graph for performing redo operation after an
+    undo operation. The last item is the most recently undoed item.
+    
+    When re-doing the whole history, last item in the list is taken and
+    restored as a current graph.
+    
+    - Note: All dependent objects of the histories referenced in the redo
+    history must be retained and should not be garbage collected.
+    """
+    
+    # TODO: Make thos public read-only
+    redo_history: list[VersionID]
+    
+    """
+    Version identifier of the latest state in the history of versions.
+    """
+    @property
+    def current_version(self) -> VersionID:
+        if not self.version_history:
+            raise RuntimeError("Version history is empty (should not be)")
+        return self.version_history[-1]
+    
+    
+    """
+    Create a new empty database.
+
+    """
+    def __init__(self):
+        self.version_id_generator = SequentialIDGenerator()
+        self.object_id_generator = SequentialIDGenerator()
+
+        self.storage = SnapshotStorage()
+        
+        initial_version = self.version_id_generator.next()
+        frame = self.storage.create_frame(initial_version)
+        
+        frame.freeze()
+        
+        self.version_history = [initial_version]
+        self.redo_history = []
+    
+    @property
+    def current_frame(self) -> VersionFrame:
+        if not (frame := self.storage.frame(self.current_version)):
+            raise RuntimeError(f"Something went wrong. There is no frame for current version {self.current_version}")
+        return frame
+    
+    def frame(self, version: VersionID) -> Optional[VersionFrame]:
+        return self.storage.frame(version)
+   
+    def create_transaction(self) -> Transaction:
+        version = self.version_id_generator.next()
+        
+        frame = self.storage.derive_frame(version, originalVersion=self.current_version)
+        transaction = Transaction(database=self, frame=frame)
+        
+        return transaction
+    
+    def commit(self, transaction: Transaction):
+        assert(transaction.is_open)
+        assert(transaction.version not in self.version_history)
+        
+        if not transaction.has_changes:
+            self.storage.remove_frame(transaction.version)
+            transaction.close()
+            return
+        
+        transaction.frame.make_transient()
+        self.version_history.append(transaction.version)
+        self.redo_history.clear()
+        transaction.close()
+    
+    def rollback(self, transaction: Transaction):
+        assert(transaction.is_open)
+        self.storage.remove_frame(transaction.version)
+        transaction.close()
+    
+    """
+    Undo the changes in the history timeline of the database up to the given
+    version.
+    
+    The function removes all history from the version forward, leaving
+    the database in the state in the version `version`.
+    
+    - Precondition: The version must exist in the version history, otherwise
+      it is considered a programming error.
+    """
+    
+    def undo(self, version: VersionID):
+        # Get the index of the version we would like to undo to. We search
+        # from the end of the version list.
+        #
+        try:
+            index = self.version_history.index(version)
+        except:
+            raise RuntimeError(f"Trying to reset to version '{version}', which does not exist in the history")
+
+        next_index = index + 1
+        
+        undo_versions = self.version_history[next_index:]
+        del self.version_history[next_index:]
+        undo_versions.reverse()
+        self.redo_history += undo_versions
+    
+    
+    """
+    Redo the undone changes up to the given version.
+    
+    The function places all undoned vesiojns from the redo history back
+    to the version history up to the `version`.
+    
+    - Precondition: The redo stack must not be empty here.
+    - Precondition: The requested version must exist in the redo stack,
+      otherwise it is considered a programming error.
+    """
+    
+    def redo(self, version: VersionID):
+        print("--? hist? ", self.version_history)
+        try:
+            index = self.redo_history.index(version)
+        except:
+            raise RuntimeError(f"Trying to redo to version '{version}', which does not exist in the history")
+
+        redo_versions = self.redo_history[index:]
+        del self.redo_history[index:]
+        redo_versions.reverse()
+        self.version_history += redo_versions
