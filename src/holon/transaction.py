@@ -1,3 +1,9 @@
+# transaction.py
+#
+# Created by: Stefan Urbanek
+# Date: 2023-03-30
+#
+
 from .version import VersionID, VersionState
 
 from .frame import VersionFrame
@@ -10,6 +16,10 @@ if TYPE_CHECKING:
     from .database import Database
 
 C = TypeVar("C", bound=Component)
+
+__all__ = [
+    "Transaction",
+]
 
 class Transaction:
     # TODO: Make private
@@ -65,8 +75,9 @@ class Transaction:
 
         object.components.set(component)
 
-
-
     def close(self):
+        """Close the transaction.
+
+        """
         assert self.is_open, "Trying to close already closed transaction"
         self.is_open = False

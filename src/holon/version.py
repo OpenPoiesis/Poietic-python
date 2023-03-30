@@ -1,5 +1,16 @@
+# version.py
+#
+# Created by: Stefan Urbanek
+# Date: 2023-03-30
+#
+
 from typing import TypeAlias
 from enum import Enum, auto
+
+__all__ = [
+    "VersionID",
+    "VersionState",
+]
 
 VersionID: TypeAlias = int
 
@@ -13,28 +24,45 @@ class VersionState(Enum):
     Objects can be `frozen`, `stable` and `transient`. The following table
     describes what can be done with the objects in given state:
 
-    |                                | `unstable ` | `transient` | `stable` |
-    |--------------------------------|-------------|-------------|----------|
-    | Change invariant attributes    |     No      |   No        |   No     |
-    | Change versioned attributes    |     Yes     |   No        |   No     |
-    | Change unversioned attributes  |     Yes     |   Yes       |   No     |
-    | Derive new version             |     No      |   Yes       |   Yes    |
+    .. list-table:: Capabilities based on state
+        :header-rows: 1
 
+        * - 
+          - `unstable`
+          - `transient`
+          - `stable`
+        * - Change invariant attributes
+          - No
+          - No
+          - No
+        * - Change versioned attributes
+          - Yes
+          - No
+          - No
+        * - Change unversioned attributes
+          - Yes
+          - Yes
+          - No
+        * - Derive new version
+          - No
+          - Yes
+          - Yes
     """
 
+    UNSTABLE = auto()
     """
-    enotes that the version of an object is mutable however it is still
+    Denotes that the version of an object is mutable however it is still
     eing initialised. No derivative versions can be created from an object
     n this state,
     """
-    UNSTABLE = auto()
     
+    TRANSIENT = auto()
     """
     Denotes that the version an object is mutable and one can derive other
     versions from it.
     """
-    TRANSIENT = auto()
     
+    FROZEN = auto()
     """
     Denotes that the version of an object is immutable and can not become
     mutable any more.
@@ -44,13 +72,12 @@ class VersionState(Enum):
     - new versions can be derived
     
     """
-    FROZEN = auto()
 
 
     @property
     def is_mutable(self) -> bool:
         """
-        Returns `true` if the object can be mutated, based on its version
+        Returns ``True`` if the object can be mutated, based on its version
         state.
         """
         return self == VersionState.UNSTABLE or self == VersionState.TRANSIENT
@@ -58,7 +85,7 @@ class VersionState(Enum):
     @property
     def can_derive(self) -> bool:
         """
-        Returns `true` if the object can be derived based on its version state.
+        Returns ``True`` if the object can be derived based on its version state.
         """
         return self == VersionState.TRANSIENT or self == VersionState.FROZEN
 

@@ -20,3 +20,7 @@ classifiers = [
 
 [tool.pyright]
 exclude = ["build", "dist"]
+
+[tool.mypy]
+
+

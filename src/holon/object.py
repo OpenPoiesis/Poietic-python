@@ -1,18 +1,56 @@
+# object.py
+#
+# Created by: Stefan Urbanek
+# Date: 2023-03-30
+#
+
 from typing import TypeAlias, Optional, TypeVar, Type
 from .identity import ID
 from .version import VersionID, VersionState
 
 from .component import Component, ComponentSet
 
-"""Object identity type."""
+__all__ = [
+    "ObjectID",
+    "SnapshotID",
+    "ObjectSnapshot",
+    "Dimension",
+]
+
+"""Object identity type.
+
+Each design object has an unique ID within the database and might have
+multiple snapshots.
+"""
 ObjectID: TypeAlias = ID
+
+"""Object snapshot identity type.
+
+`SnapshotID` is unique within the database.
+"""
 SnapshotID: TypeAlias = ID
 
+
 class Dimension:
+    """Object dimension.
+
+    Object dimensions are used to denote system context.
+
+    Potential dimensions might be: user dimension - objects created by the
+    user, interpreter dimension - objects created by the interpreter, used by
+    the compiler, etc.
+
+    Objects dimensions are defined in the metamodel.
+
+    There should be only one instance of a dimension per metamodel. Dimensions
+    can be compared using identity comparison `is`/`is not`.
+    """
+
+    """Dimension name. Used for debug purposes."""
     name: str
 
-    """Graph dimension type."""
     def __init__(self, name: str):
+        """Create a new dimension with name `name`."""
         self.name = name
 
 DEFAULT_DIMENSION: Dimension = Dimension(name="%default")
@@ -26,9 +64,9 @@ class ObjectSnapshot:
     within the database.
 
     Object has an identity that is unique within a database.
-
     """
 
+    # TODO: Make this private and expose public read-only property
     """Object identity that is guaranteed to be unique within the object
     memory."""
     id: ObjectID
@@ -64,6 +102,11 @@ class ObjectSnapshot:
         
         Precondition: The object must be in a derive-able state. See [`VersionState`] for more
         information.
+
+        :param VersionID version: thing a boo
+        :param VersionID goo: thing a boo
+        :return: BOOOOO!
+
         """
         assert self.state.can_derive, f"Can not derive an object that is in the state {self.state}"
 

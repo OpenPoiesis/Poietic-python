@@ -1,3 +1,10 @@
+# database.py
+#
+# Created by: Stefan Urbanek
+# Date: 2023-03-30
+#
+
+
 from .transaction import Transaction
 from .frame import VersionFrame
 from .frame import SnapshotStorage
@@ -5,24 +12,27 @@ from .version import VersionID
 from .identity import SequentialIDGenerator
 from typing import Optional
 
+__all__ = [
+    "Database"
+]
+
 class Database:
     # TODO: This needs to be wrapped in a lock
+    object_id_generator: SequentialIDGenerator
     """
     Sequential generator for object identifiers - unique for each object
     during the lifetime of the database.
     """
-    object_id_generator: SequentialIDGenerator
     
     # TODO: This needs to be wrapped in a lock
+    version_id_generator: SequentialIDGenerator
     """
     Sequential generator for version identifiers - unique for each
     transaction during the lifetime of the database.
 
     """ 
-    version_id_generator: SequentialIDGenerator
     
     storage: SnapshotStorage
-    
     """
     List of versions that are represented by version planes in the database.
     
@@ -34,14 +44,23 @@ class Database:
     
     @property
     def all_versions(self) -> list[VersionID]:
+        """
+        List of all frame versions present in the database.
+
+        The order is arbitrary and nothings should be inferred from it.
+        """
         return list(self.storage.frames.keys())
     
-    # TODO :MAke it this public read-only
+    # TODO :Make it this public read-only
     version_history: list[VersionID]
+    """List of versions in chronological order."""
     
     # TODO: [IMPORTANT] Garbage collection of unused versions of graph objects (nodes/edges)
     
     # Undo/redo buffers
+    
+    # TODO: Make thos public read-only
+    redo_history: list[VersionID]
     """
     List of versions of a graph for performing redo operation after an
     undo operation. The last item is the most recently undoed item.
@@ -53,24 +72,20 @@ class Database:
     history must be retained and should not be garbage collected.
     """
     
-    # TODO: Make thos public read-only
-    redo_history: list[VersionID]
-    
-    """
-    Version identifier of the latest state in the history of versions.
-    """
     @property
     def current_version(self) -> VersionID:
+        """
+        Version identifier of the latest state in the history of versions.
+        """
         if not self.version_history:
             raise RuntimeError("Version history is empty (should not be)")
         return self.version_history[-1]
     
     
-    """
-    Create a new empty database.
-
-    """
     def __init__(self):
+        """
+        Create a new empty database.
+        """
         self.version_id_generator = SequentialIDGenerator()
         self.object_id_generator = SequentialIDGenerator()
 
@@ -86,14 +101,19 @@ class Database:
     
     @property
     def current_frame(self) -> VersionFrame:
+        """Current version frame."""
         if not (frame := self.storage.frame(self.current_version)):
             raise RuntimeError(f"Something went wrong. There is no frame for current version {self.current_version}")
         return frame
     
+    
     def frame(self, version: VersionID) -> Optional[VersionFrame]:
+        """Get a frame with given version identifier, if it exists."""
         return self.storage.frame(version)
    
+    
     def create_transaction(self) -> Transaction:
+        """Create a new transaction."""
         version = self.version_id_generator.next()
         
         frame = self.storage.derive_frame(version, originalVersion=self.current_version)
@@ -101,7 +121,13 @@ class Database:
         
         return transaction
     
+    
     def commit(self, transaction: Transaction):
+        """Commit an open transaction and push the frame version into the
+        history.
+
+        If transaction has no changes, nothing happens.
+        """
         assert(transaction.is_open)
         assert(transaction.version not in self.version_history)
         
@@ -115,23 +141,31 @@ class Database:
         self.redo_history.clear()
         transaction.close()
     
+
     def rollback(self, transaction: Transaction):
+        """Rolls-back the transaction.
+
+        Cleans-up all objects related to the transaction and closes the
+        transaction.
+        """
         assert(transaction.is_open)
         self.storage.remove_frame(transaction.version)
         transaction.close()
     
-    """
-    Undo the changes in the history timeline of the database up to the given
-    version.
-    
-    The function removes all history from the version forward, leaving
-    the database in the state in the version `version`.
-    
-    - Precondition: The version must exist in the version history, otherwise
-      it is considered a programming error.
-    """
-    
+
     def undo(self, version: VersionID):
+        """
+        Undo the changes in the history timeline of the database up to the given
+        version.
+        
+        The function removes all history from the version forward, leaving
+        the database in the state in the version `version`.
+        
+        - Precondition: The version must exist in the version history, otherwise
+          it is considered a programming error.
+
+        """
+    
         # Get the index of the version we would like to undo to. We search
         # from the end of the version list.
         #
@@ -148,19 +182,17 @@ class Database:
         self.redo_history += undo_versions
     
     
-    """
-    Redo the undone changes up to the given version.
-    
-    The function places all undoned vesiojns from the redo history back
-    to the version history up to the `version`.
-    
-    - Precondition: The redo stack must not be empty here.
-    - Precondition: The requested version must exist in the redo stack,
-      otherwise it is considered a programming error.
-    """
-    
     def redo(self, version: VersionID):
-        print("--? hist? ", self.version_history)
+        """
+        Redo the undone changes up to the given version.
+        
+        The function places all undoned vesiojns from the redo history back
+        to the version history up to the `version`.
+        
+        - Precondition: The redo stack must not be empty here.
+        - Precondition: The requested version must exist in the redo stack,
+          otherwise it is considered a programming error.
+        """
         try:
             index = self.redo_history.index(version)
         except:

@@ -1,27 +1,36 @@
+# frame.py
+#
+# Created by: Stefan Urbanek
+# Date: 2023-03-30
+#
+
 from typing import Optional
 from .version import VersionID, VersionState
 from .object import ObjectID, ObjectSnapshot
 
+__all__ = [
+    "VersionFrame",
+    "SnapshotStorage",
+]
+
 class VersionFrame:
     """
-    Configuration Plane combines different versions of objects.
-
-    - Note: In the original paper analogous concept is called `configuration plane`
-      however the more common usage of the term _"configuration"_ nowadays has a
-      different connotation. Despite _configuration_ being more correct for this
-      concept, we go with _arrangement_.
+    Version plane represents a version snapshot of the design – snapshot of
+    objects and their properties.
     """
 
-    """Mutability state of the plane."""
     state: VersionState
+    """Mutability state of the plane."""
     
+    version: VersionID
     """
     Version associated with this plane. All objects created or modified
     in this plane share the same version. Version is unique within the
     object memory.
     """
-    version: VersionID
     
+    # check for mutability
+    objects: dict[ObjectID, ObjectSnapshot]
     """
     Versions of objects in the plane.
     
@@ -29,12 +38,15 @@ class VersionFrame:
     exist in the object memory.
 
     """
-    # check for mutability
-    objects: dict[ObjectID, ObjectSnapshot]
    
     
     def __init__(self, version: VersionID,
                  objects: Optional[dict[ObjectID, ObjectSnapshot]] = None):
+        """Create a new version frame for a version `version`.
+
+        :param VersionID version: Version ID of the new frame. It must be unique within the database.
+        :param dict[ObjectID, ObjectSnapshot] objetcs: optional dictionary of objects that will be associated with this frame.
+        """
         self.version = version
         self.state = VersionState.UNSTABLE
         if objects is not None:
@@ -43,9 +55,22 @@ class VersionFrame:
             self.objects = dict()
     
     def contains(self, id: ObjectID) -> bool:
+        """:return: `True` if the frame constains objects with object identity `id`."""
         return id in self.objects
 
     def derive_object(self, id: ObjectID) -> ObjectSnapshot:
+        """Derive an object with identity `id` so it can be mutated within this
+        frame.
+
+        :return: Derived object snapshot.
+
+        Preconditions:
+
+        * frame must be mutable
+        * frame must contain the object
+        * object must not be already derived
+
+        """
         assert self.state.is_mutable
         assert id in self.objects
 
@@ -59,12 +84,23 @@ class VersionFrame:
     
     # Remove the object from the frame
     def remove(self, id: ObjectID):
+        """Remove an object with given identity from the frame."""
         assert self.state.is_mutable
         assert id in self.objects, \
                      f"Trying to remove an object ({id}) that is not in the frame {self.version}"
         del self.objects[id]
     
     def insert(self, snapshot: ObjectSnapshot):
+        """Insert a snapshot to the frame.
+
+        Preconditions:
+
+        * Frame must be mutable.
+        * Frame must not contain an object with the same identity as the
+          snapshot.
+        * Snapshot version must be the same as the frame version.
+
+        """
         assert (self.state.is_mutable)
         assert (self.version == snapshot.version)
         assert (snapshot.id not in self.objects)
@@ -72,6 +108,9 @@ class VersionFrame:
         self.objects[snapshot.id] = snapshot
     
     def object(self, id: ObjectID) -> Optional[ObjectSnapshot]:
+        """Returns an object with given identity if the frame contains it.
+        Otherwise returns `None`."""
+
         # TODO: Make mutable/immutable version of this method.
         return self.objects.get(id)
     
@@ -79,10 +118,15 @@ class VersionFrame:
         return f"VersionFrame({self.version}, state: {self.state}"
     
     def derive(self, version: VersionID) -> "VersionFrame":
+        """Derive new version of the frame."""
         assert (self.state.can_derive)
         return VersionFrame(version=version, objects=self.objects)
     
     def make_transient(self):
+        """Make the frame transient.
+
+        All objects in the frame that are unstable will be made transient.
+        """
         for obj in self.objects.values():
             if obj.version == self.version and obj.state == VersionState.UNSTABLE:
                 obj.make_transient()
@@ -90,6 +134,10 @@ class VersionFrame:
         self.state = VersionState.TRANSIENT
     
     def freeze(self):
+        """Make the frame frozen.
+
+        All objects in the frame that are transient will be frozen.
+        """
         for obj in self.objects.values():
             if obj.version == self.version and obj.state != VersionState.FROZEN:
                 obj.freeze()
@@ -97,15 +145,29 @@ class VersionFrame:
 
 
 class SnapshotStorage:
+    """Storage of version frames."""
+
     frames: dict[VersionID, VersionFrame]
     
     def __init__(self):
+        """Create a new frame storage."""
         self.frames = dict()
     
     def frame(self, version: VersionID) -> Optional[VersionFrame]:
+        """Get a frame by version.
+
+        :param VersionID version: Version of the frame to be fetched.
+        :return: A frame if it exists in the storage.
+        """
         return self.frames[version]
 
     def versions(self, id: ObjectID) -> list[VersionID]:
+        """ Get list of all versions of a given object.
+
+        :param ObjectID id: Identity of the object to be queired.
+        :return: a list of version IDs.
+
+        """
         versions: list[VersionID] = []
 
         for frame in self.frames.values():
@@ -116,6 +178,21 @@ class SnapshotStorage:
 
     
     def create_frame(self, version: VersionID) -> VersionFrame:
+        """Create a new empty frame in the storage and assign it a new version
+        ID.
+
+        Precondition: storage must not contain a frame with given version.
+
+        :param VersionID version: Version identity of the new frame.
+        :return: Newly created version frame.
+
+
+        .. note::
+            Usually you do not want to call this method, as creating an empty
+            frame is a very unique operation. This method is used by the
+            database to create the very first frame.
+
+        """
         assert version not in self.frames
 
         frame = VersionFrame(version=version)
@@ -127,6 +204,14 @@ class SnapshotStorage:
     def derive_frame(self,
                      version: VersionID,
                      originalVersion: VersionID) -> VersionFrame:
+        """Derive a frame from an existing frame.
+
+        :param VersionID version: Version of the new frame.
+        :param VersionID originalVersion: Version of the frame to be used as an original.
+
+        Precondition: Storage must not contain `version`.
+
+        """
         assert version not in self.frames
 
         original = self.frames[originalVersion]
@@ -140,5 +225,7 @@ class SnapshotStorage:
         return derived
     
     def remove_frame(self, version: VersionID):
+        """Remove a frame `version` from the storage."""
+
         assert version in self.frames
         del self.frames[version]
