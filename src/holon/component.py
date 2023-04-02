@@ -50,4 +50,11 @@ class ComponentSet:
     def as_list(self) -> list[Component]:
         return list(self._components.values())
 
-        
+    def has(self, component_type: Type[Component]) -> bool:
+        """Returns `true` when the component `component_type` is present."""
+        return component_type in self._components
+
+    def __str__(self) -> str:
+        comp_list = ", ".join(str(key.__name__) for key in self._components.keys())
+        return f"[{comp_list}]"
+

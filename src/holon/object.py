@@ -4,11 +4,13 @@
 # Date: 2023-03-30
 #
 
-from typing import TypeAlias, Optional, TypeVar, Type
+from typing import TypeAlias, Optional, TypeVar, Type, Self
+
 from .identity import ID
 from .version import VersionID, VersionState
 
 from .component import Component, ComponentSet
+from .object_type import ObjectType
 
 __all__ = [
     "ObjectID",
@@ -65,20 +67,30 @@ class ObjectSnapshot:
 
     Object has an identity that is unique within a database.
     """
+    # TODO: Rename id to _persistent_id
+    # TODO: Rename version to _persistent_version
+    # TODO: Make all ids read-only, allow write only in unstable state
+    # TODO: Mention that we are doing the above to prevent us having two classes.
 
     # TODO: Make this private and expose public read-only property
+    id: ObjectID
     """Object identity that is guaranteed to be unique within the object
     memory."""
-    id: ObjectID
 
-    """Object version identifier – unique within object identity."""
     version: VersionID
+    """Object version identifier – unique within object identity."""
 
-    """Object state. See ``VersionState`` for more information."""
     state: VersionState
+    """Object state. See ``VersionState`` for more information."""
 
-    """Dimension of the object in a graph."""
+    # TODO: For the time being the type is optional
+    # Note: we want to allow change of type.
+    type: Optional[ObjectType]
+
+    # FIXME: Do we still need this? (consider removing)
     dimension: Dimension
+    """Dimension of the object in a graph."""
+
     components: ComponentSet
 
 
@@ -93,9 +105,10 @@ class ObjectSnapshot:
         self.state = VersionState.UNSTABLE
         self.dimension = DEFAULT_DIMENSION
         self.components = ComponentSet(components)
+        self.type = None
 
 
-    def derive(self, version: VersionID) -> "ObjectSnapshot":
+    def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
         """
         Derive a new object from existing object and assign it a new version
         identifier.
@@ -103,18 +116,36 @@ class ObjectSnapshot:
         Precondition: The object must be in a derive-able state. See [`VersionState`] for more
         information.
 
-        :param VersionID version: thing a boo
-        :param VersionID goo: thing a boo
-        :return: BOOOOO!
+        :param VersionID version: new version identifier of the derived snapshot.
+        :param VersionID id: new object identity of the derived snapshot.
+        :return: Derived object snapshot.
+
+        Usually one does not need to provide a new object identity. If not
+        provided, the identity of the receiver of this method will be used.
+
+        .. note:
+            We are relying on the Python's dynamic object runtime here. This
+            portion needs to be re-thinked, if it is meant to be implementable
+            in other languages.
+
+            For example, in Swift this would be illegal, unless the instance
+            variables of the subclasses would be forced-unwrap optionals that
+            can be initialized later.
+
+            Alternative in other languages might be to include a `structural
+            component` property, that might be an enum-like.
 
         """
         assert self.state.can_derive, f"Can not derive an object that is in the state {self.state}"
 
-        obj = ObjectSnapshot(id = self.id,
+        new_id = id or self.id
+
+        obj = ObjectSnapshot(id = new_id,
                              version = version,
                              components = self.components.as_list() )
         obj.dimension = self.dimension
         obj.state = VersionState.UNSTABLE
+        obj.type = self.type
         return obj
 
     def make_transient(self):
@@ -127,4 +158,11 @@ class ObjectSnapshot:
 
     def __getitem__(self, key: Type[C]) -> C:
         return self.components.get(key)
+
+    def structural_dependencies(self) -> list[ObjectID]:
+        """Return objects that structurally depend on the receiver.
+
+        For example an edge depends on a node that is an endpoint of the edge.
+        """
+        return []
 
