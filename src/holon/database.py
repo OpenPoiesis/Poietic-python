@@ -127,6 +127,12 @@ class Database:
         history.
 
         If transaction has no changes, nothing happens.
+
+        Guarantees:
+
+        * commited frame has referential integrity within the structural
+          objects
+        * all objects in the commited frame are either transient or frozen.
         """
         assert(transaction.is_open)
         assert(transaction.version not in self.version_history)
@@ -137,6 +143,10 @@ class Database:
             return
         
         transaction.frame.make_transient()
+
+        if not transaction.frame.has_referential_integrity:
+            raise RuntimeError(f"Referential integrity violated (transaction: {transaction.version})")
+
         self.version_history.append(transaction.version)
         self.redo_history.clear()
         transaction.close()

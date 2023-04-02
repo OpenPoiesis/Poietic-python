@@ -4,13 +4,13 @@
 # Date: 2023-03-30
 #
 
-from .version import VersionID, VersionState
+from .version import VersionID
 
 from .frame import VersionFrame
 from .object import ObjectID, ObjectSnapshot
 from .component import Component
 
-from typing import Optional, Type, TypeVar
+from typing import Optional, TypeVar
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .database import Database
@@ -43,8 +43,35 @@ class Transaction:
     def has_changes(self) -> bool:
         return (len(self.removed_objects) > 0 or len(self.derived_objects) > 0)
 
+    def insert_derived(self,
+                       original: ObjectSnapshot,
+                       id: Optional[ObjectID] = None) -> ObjectID:
+        """Inserts a derived instance of the snapshot.
+
+        The derived instance will have the provided `id` or a new ID generated
+        from the database identity sequence.
+
+        - Precondition: if the object ID is provided, it must not exist in the
+          frame.
+
+        The identity of the original snapshot is ignored.
+        """
+
+        assert self.is_open, "Trying to modify a closed transaction"
+
+        actual_id = id or self.database.object_id_generator.next()
+
+        derived = original.derive(version=self.version, id=actual_id)
+
+        self.derived_objects[actual_id] = derived
+        self.frame.insert(derived)
+    
+        return actual_id
+
+
     def create_object(self, id: Optional[ObjectID] = None,
                       components: Optional[list[Component]] = None) -> ObjectID:
+        # TODO: Deprecated method in favour of insert_object(snapshot:id:)
         assert self.is_open, "Trying to modify a closed transaction"
 
         actual_id = id or self.database.object_id_generator.next()
@@ -60,6 +87,13 @@ class Transaction:
         assert self.is_open, "Trying to modify a closed transaction"
         self.frame.remove(id)
         self.removed_objects.append(id)
+
+    def remove_object_cascading(self, id: ObjectID) -> list[ObjectID]:
+        assert self.is_open, "Trying to modify a closed transaction"
+        removed = self.frame.remove_cascading(id)
+        self.removed_objects.append(id)
+        self.removed_objects += removed
+        return removed
 
     def set_component(self, id: ObjectID, component: Component):
         assert self.is_open, "Trying to close already closed transaction"

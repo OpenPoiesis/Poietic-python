@@ -4,9 +4,12 @@
 # Date: 2023-03-30
 #
 
-from typing import Optional
+from typing import Optional, Iterator, TYPE_CHECKING
 from .version import VersionID, VersionState
 from .object import ObjectID, ObjectSnapshot
+
+if TYPE_CHECKING:
+    from .graph import UnboundGraph
 
 __all__ = [
     "VersionFrame",
@@ -15,7 +18,7 @@ __all__ = [
 
 class VersionFrame:
     """
-    Version plane represents a version snapshot of the design – snapshot of
+    Version frame represents a version snapshot of the design – snapshot of
     objects and their properties.
     """
 
@@ -58,6 +61,41 @@ class VersionFrame:
         """:return: `True` if the frame constains objects with object identity `id`."""
         return id in self.objects
 
+
+    def structural_dependants(self, id: ObjectID) -> Iterator[ObjectID]:
+        """
+        Find all objects that depend on the object with `id`. For example,
+        edges depend on their endpoints.
+
+        For example, when removing a node, find all edges that point to/from
+        the node and remove them as well, when cascading removal is desired.
+
+        :return: Objects that structurally depend on the object with `id`.
+        """
+        for object in self.objects.values():
+            if id in object.structural_dependencies():
+                yield object.id
+
+    def has_referential_integrity(self) -> bool:
+        """Returns `true` if the frame maintains referential integrity of
+        structural objects."""
+
+        return next(self.referential_integrity_violators()) == None
+
+
+    def referential_integrity_violators(self) -> Iterator[ObjectID]:
+        """Iterates through objects that structurally vioalte referential
+        integrity of the frame.
+
+        For example, if the frame is representing a graph and endpoints of the
+        edges of the graph refer to objects that do not exist in the frame."""
+
+        for (oid, object) in self.objects.items():
+            if any(id not in self.objects
+                   for id in object.structural_dependencies()):
+                yield oid
+                    
+
     def derive_object(self, id: ObjectID) -> ObjectSnapshot:
         """Derive an object with identity `id` so it can be mutated within this
         frame.
@@ -82,9 +120,29 @@ class VersionFrame:
         self.objects[id] = derived
         return derived
     
-    # Remove the object from the frame
+    def remove_cascading(self, id: ObjectID) -> list[ObjectID]:
+        """Remove object from the frame including all it dependants."""
+        assert self.state.is_mutable
+        assert id in self.objects, \
+                     f"Trying to remove an object ({id}) that is not in the frame {self.version}"
+
+        # Preliminary implementation, works for edge-like objects. Good for
+        # now.
+        removed: list[ObjectID] = list()
+
+        for (dep_id, dep) in self.objects.items():
+            if id not in dep.structural_dependencies():
+                continue
+            del self.objects[dep_id]
+            removed.append(dep_id)
+
+        del self.objects[id]
+
+        return removed
+
     def remove(self, id: ObjectID):
         """Remove an object with given identity from the frame."""
+        # TODO: Rename to remove_unsafe and recommend remove_cascading()
         assert self.state.is_mutable
         assert id in self.objects, \
                      f"Trying to remove an object ({id}) that is not in the frame {self.version}"
@@ -142,6 +200,14 @@ class VersionFrame:
             if obj.version == self.version and obj.state != VersionState.FROZEN:
                 obj.freeze()
         self.state = VersionState.FROZEN
+
+
+    # Graph
+    # -------------------------------------------------------------------
+    @property
+    def unbound_graph(self) -> "UnboundGraph":
+        """Get unbound graph view of the frame."""
+        return UnboundGraph(self)
 
 
 class SnapshotStorage:

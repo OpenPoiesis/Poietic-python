@@ -1,5 +1,4 @@
 from holon.database import Database
-from holon.transaction import Transaction
 from holon.version import VersionID, VersionState
 from holon.component import Component
 
@@ -137,7 +136,6 @@ class TestDatabase(unittest.TestCase):
 
         if not (originalNodeAgain := frame.object(id)):
             self.fail("Fetching of original object failed")
-            return
         
         self.assertEqual("hello", originalNodeAgain[TestComponent].text)
 
