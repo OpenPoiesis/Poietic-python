@@ -10,6 +10,7 @@ __all__ = [
     "BinaryExpressionNode",
     "FunctionExpressionNode",
 
+    "ExpressionNode",
     "UnboundExpression",
 ]
 
