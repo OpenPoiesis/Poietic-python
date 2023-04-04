@@ -9,7 +9,7 @@ from .version import VersionID, VersionState
 from .object import ObjectID, ObjectSnapshot
 
 if TYPE_CHECKING:
-    from .graph import UnboundGraph
+    from ..graph import UnboundGraph
 
 __all__ = [
     "VersionFrame",

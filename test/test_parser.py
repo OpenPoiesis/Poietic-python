@@ -1,8 +1,8 @@
 import unittest
 
-from flows.expression.parser import Lexer, TokenType, Token, ParserError
-from flows.expression.parser import ExpressionParser, SyntaxError
-from flows.expression import \
+from holon.flows.expression.parser import Lexer, TokenType, Token, ParserError
+from holon.flows.expression.parser import ExpressionParser, SyntaxError
+from holon.flows.expression import \
         UnboundExpression, \
         ValueExpressionNode, \
        VariableExpressionNode, \

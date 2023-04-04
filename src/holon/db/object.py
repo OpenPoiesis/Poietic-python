@@ -94,7 +94,11 @@ class ObjectSnapshot:
     components: ComponentSet
 
 
-    def __init__(self, id: ObjectID, version: VersionID, components: Optional[list[Component]] = None):
+    def __init__(self,
+                 id: ObjectID,
+                 version: VersionID,
+                 type: Optional[ObjectType]=None,
+                 components: Optional[list[Component]] = None):
         """
         Create a new object with given identity and version.
         The combination of object identity and version must be unique within the database.
@@ -105,7 +109,7 @@ class ObjectSnapshot:
         self.state = VersionState.UNSTABLE
         self.dimension = DEFAULT_DIMENSION
         self.components = ComponentSet(components)
-        self.type = None
+        self.type = type
 
 
     def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
@@ -140,7 +144,7 @@ class ObjectSnapshot:
 
         new_id = id or self.id
 
-        obj = ObjectSnapshot(id = new_id,
+        obj = self.__class__(id = new_id,
                              version = version,
                              components = self.components.as_list() )
         obj.dimension = self.dimension

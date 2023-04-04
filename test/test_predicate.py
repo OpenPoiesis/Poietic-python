@@ -7,10 +7,15 @@
 
 import unittest
 
-from holon.component import Component
-from holon.object import ObjectSnapshot, ObjectID
-from holon.predicate import HasComponentPredicate
-from holon.frame import VersionFrame
+from holon.flows import Metamodel, ExpressionComponent
+
+from holon.db import Database, Transaction
+from holon.graph import MutableUnboundGraph
+
+from holon.db import Component
+from holon.db import ObjectSnapshot
+from holon.db import VersionFrame
+from holon.graph import HasComponentPredicate
 from holon.graph import UnboundGraph
 
 class TestComponent(Component):
@@ -35,4 +40,23 @@ class TestPredicate(unittest.TestCase):
         self.assertTrue(pred.match(graph, obj_yes))
         self.assertFalse(pred.match(graph, obj_no))
 
+class TestGraphQuery(unittest.TestCase):
+    db: Database
+    trans: Transaction
+    graph: MutableUnboundGraph
+
+    def setUp(self):
+        self.db = Database()
+        self.trans = self.db.create_transaction()
+        self.graph = MutableUnboundGraph(self.trans)
+
+    def test_selectNodes(self):
+        node_id = self.graph.create_node(Metamodel.Auxiliary,
+                              [ExpressionComponent(name="c",expression="0")])
+
+        nodes = list(self.graph.select_nodes(Metamodel.expression_nodes))
+
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0].id, node_id)
+        self.assertIs(nodes[0], self.graph.node(node_id))
 

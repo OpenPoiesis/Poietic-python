@@ -4,18 +4,22 @@
 #
 # Created by: Stefan Urbanek
 # Date: 2023-04-01
+
 from typing import ClassVar
 
-from ..holon.predicate import \
+from ..graph.predicate import \
         NodePredicate, \
         EdgePredicate, \
-        HasComponentPredicate
-from ..holon import Component
-from ..holon import Edge, Node
-from ..holon import ObjectType
+        HasComponentPredicate, \
+        NeighborhoodSelector, \
+        EdgeDirection, \
+        IsTypePredicate
+
+from ..db import Component, ObjectType, ObjectSnapshot
+from ..graph import Edge, Node
 
 __all__ = [
-    "FlowsMetaModel",
+    "Metamodel",
     "LocationComponent",
     "DescriptionComponent",
     "ErrorComponent",
@@ -86,12 +90,15 @@ class ExpressionComponent(Component):
     name: str
     expression: str
 
+    def __init__(self, name: str, expression: str):
+        self.name = name
+        self.expression = expression
+
 
 # Flows Meta Model
 # --------------------------------------------------------------------------
 
-class FlowsMetaModel:
-
+class Metamodel:
     Stock = ObjectType(
             name="Stock",
             structural_type = Node,
@@ -145,5 +152,20 @@ class FlowsMetaModel:
             component_types=[
                 # None for now,
             ])
+
+    # Prototypes
+    # ----------------------------------------------------------------------
+
+    prototypes: list[ObjectSnapshot] = [
+        
+    ]
+
+    # Queries
+    # ----------------------------------------------------------------------
      
-    expression_nodes_query = NodeQuery(HasComponentPredicate(ExpressionComponent))
+    expression_nodes = HasComponentPredicate(ExpressionComponent)
+    incoming_parameters = NeighborhoodSelector(
+            predicate=IsTypePredicate(Parameter),
+            direction=EdgeDirection.INCOMING,
+        )
+

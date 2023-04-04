@@ -39,7 +39,7 @@ class ObjectType:
     The name will be used in the interchange format.
     """
 
-    component_types = list[Type[Component]]
+    component_types: list[Type[Component]]
     """
     List of component types that the object of this type is expected to
     contain.

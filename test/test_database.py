@@ -1,6 +1,6 @@
-from holon.database import Database
-from holon.version import VersionID, VersionState
-from holon.component import Component
+from holon.db import Database
+from holon.db import VersionID, VersionState
+from holon.db import Component
 
 import unittest
 

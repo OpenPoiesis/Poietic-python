@@ -3,20 +3,33 @@
 # Created by: Stefan Urbanek
 # Date: 2023-03-30
 
-from typing import Protocol, Iterable, Optional, Self, cast
+from typing import Protocol, Iterable, Optional, Self, cast, TYPE_CHECKING
 from abc import abstractmethod
+from enum import Enum, auto
 
-from .object import ObjectID, ObjectSnapshot
-from .version import VersionID
-from .frame import VersionFrame
-from .transaction import Transaction
+from ..db.object import ObjectID, ObjectSnapshot
+from ..db.object_type import ObjectType
+from ..db.component import Component
+from ..db.version import VersionID, VersionState
+from ..db.frame import VersionFrame
+from ..db.transaction import Transaction
+
+if TYPE_CHECKING:
+    from .predicate import NodePredicate, EdgePredicate, Neighborhood, \
+    NeighborhoodSelector
 
 __all__ = [
     "Graph",
     "Node",
     "Edge",
+
+    "EdgeDirection",
+
     "BoundGraph",
     "UnboundGraph",
+
+    # Draft
+    "MutableUnboundGraph",
 ]
 
 # Structural Object Types
@@ -35,6 +48,25 @@ class Edge(ObjectSnapshot):
     target: ObjectID
     """Target endpoint (arrow head) of the directed edge."""
 
+    def __init__(self,
+                 id: ObjectID,
+                 version: VersionID,
+                 origin: ObjectID,
+                 target: ObjectID,
+                 type: Optional[ObjectType]=None,
+                 components: Optional[list[Component]] = None):
+        """
+        Create a new object with given identity and version.
+        The combination of object identity and version must be unique within the database.
+        """
+        super().__init__(id=id,
+                         version=version,
+                         type=type,
+                         components=components)
+        self.origin = origin
+        self.target = target
+
+
     def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
         """Derive a new edge, keeping the same origin and target."""
         derived = super().derive(version=version, id=id)
@@ -49,6 +81,11 @@ class Edge(ObjectSnapshot):
         For example an edge depends on a node that is an endpoint of the edge.
         """
         return [self.origin, self.target]
+
+class EdgeDirection(Enum):
+    OUTGOING = auto()
+    INCOMING = auto()
+
 
 # Graph Protocol
 # --------------------------------------------------------------------------
@@ -101,6 +138,29 @@ class Graph(Protocol):
     def neighbors(self, id: ObjectID) -> Iterable[Edge]:
         return (edge for edge in self.edges() if edge.origin == id or edge.target == id)
 
+    def select_neighbors(self,
+                  id: ObjectID,
+                  selector: "NeighborhoodSelector") -> "Neighborhood":
+        
+        edges: Iterable[Edge]
+
+        match selector.direction:
+            case EdgeDirection.INCOMING: edges = self.incoming(id)
+            case EdgeDirection.OUTGOING: edges = self.outgoing(id)
+        
+        return Neighborhood(self,
+                            selector=selector,
+                            node_id=id,
+                            edges=edges)
+
+    def select_nodes(self, predicate: "NodePredicate") -> Iterable[Node]:
+        return (node for node in self.nodes()
+                if predicate.match_node(self, node))
+
+    def select_edges(self, predicate: "EdgePredicate") -> Iterable[Edge]:
+        return (edge for edge in self.edges()
+                if predicate.match_edge(self, edge))
+
 
 
 class MutableGraph(Graph, Protocol):
@@ -148,11 +208,11 @@ class MutableUnboundGraph(UnboundGraph, MutableGraph):
 
     transaction: Transaction
 
-    def __init__(self, frame: VersionFrame, transaction: Transaction):
+    def __init__(self, transaction: Transaction):
         """Create a new unbound-graph view on top of a version frame `frame`
         within a transaction `transaction.
         """
-        super().__init__(frame)
+        super().__init__(transaction.frame)
         self.transaction = transaction
 
     def insert_node(self, node: Node):
@@ -164,6 +224,58 @@ class MutableUnboundGraph(UnboundGraph, MutableGraph):
         assert self.frame.contains(edge.target), \
                 f"The graph does not contain target node {edge.target}"
         self.transaction.insert_derived(edge)
+
+    # FIXME:[DEBT] This needs redesign.
+    # FIXME: Add tests
+    def create_node(self,
+               object_type: ObjectType,
+               components: Optional[list[Component]] = None) -> ObjectID:
+        # TODO: Prefer this convenience method
+        assert object_type.structural_type is Node
+        object = Node(id=0,
+                      version=self.transaction.version,
+                      type=object_type,
+                      components=components)
+        object.state = VersionState.TRANSIENT
+        # Insert missing but required components with default initialization
+        #
+        for comp_type in object_type.component_types:
+            if not object.components.has(comp_type):
+                object.components.set(comp_type())
+
+        # FIXME: We are unnecessarily creating two copies of the object here
+        return self.transaction.insert_derived(object)
+
+
+    # FIXME:[DEBT] This needs redesign.
+    # FIXME: This is not properly designed, as well as other create_* methods
+    # FIXME: Add tests
+    def create_edge(self,
+                object_type: ObjectType,
+                origin: ObjectID,
+                target: ObjectID,
+                components: Optional[list[Component]] = None) -> ObjectID:
+        # TODO: Prefer this convenience method
+        assert object_type.structural_type is Edge
+        assert self.transaction.frame.contains(origin)
+        assert self.transaction.frame.contains(target)
+
+        object = Edge(id=0,
+                      version=self.transaction.version,
+                      origin=origin,
+                      target=target,
+                      type=object_type,
+                      components=components)
+        object.state = VersionState.TRANSIENT
+        # Insert missing but required components with default initialization
+        #
+        for comp_type in object_type.component_types:
+            if not object.components.has(comp_type):
+                object.components.set(comp_type())
+
+        # FIXME: We are unnecessarily creating two copies of the object here
+        return self.transaction.insert_derived(object)
+
 
     def remove_node(self, node_id: ObjectID) -> list[ObjectID]:
         return self.transaction.remove_object_cascading(node_id)

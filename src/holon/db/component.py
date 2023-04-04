@@ -12,6 +12,16 @@ class Component(Protocol):
     the system.
 
     Currently there is no other requirement.
+
+    .. note:
+        The ``Component``concept in this project is rather a logical one than a
+        phyisical one. How the components are stored should be opaque to the
+        user of the framework. One can think of component as of grouping of
+        attributes. The primary use-cases of the groups are:
+
+        - extensibility of the model through composition
+        - separation of concerns by providing different aspects on objects to
+          systems using the objects as they need it
     """
     pass
 

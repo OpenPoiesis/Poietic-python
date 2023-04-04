@@ -1,5 +1,6 @@
-from holon.frame import SnapshotStorage
-from holon.object import ObjectSnapshot, Dimension
+from holon.db import SnapshotStorage
+from holon.db import ObjectSnapshot, Dimension
+
 import unittest
 
 class TestSnapshotStorage(unittest.TestCase):
