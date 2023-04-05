@@ -14,12 +14,17 @@ __all__ = [
     "UnboundExpression",
 ]
 
+# FIXME: Value protocol is not yet implemented.
 ValueProtocol = Any
+
 
 V = TypeVar('V')
 """Type representing a variable or a variable reference"""
+
+
 F = TypeVar('F')
 """Type representing a function or a function reference"""
+
 
 class ExpressionKind(Enum):
     """Type of the expression node.
@@ -40,11 +45,18 @@ class ExpressionNode(Generic[V, F]):
 
     @abstractmethod
     def children(self) -> list["ExpressionNode[V, F]"]:
+        """List of sub-expressions of the expression node."""
         pass
     
+
     @abstractmethod
     def all_variables(self) -> list[V]:
+        """List of all variables used in the expression, including
+        sub-expressions.
+
+        The returned order is arbitrary."""
         pass
+
 
 class NullExpressionNode(ExpressionNode, Generic[V, F]):
     kind: ClassVar[ExpressionKind] = ExpressionKind.NULL
@@ -63,6 +75,7 @@ class NullExpressionNode(ExpressionNode, Generic[V, F]):
 
     def __str__(self) -> str:
         return "null"
+
 
 class ValueExpressionNode(ExpressionNode, Generic[V, F]):
     kind: ClassVar[ExpressionKind] = ExpressionKind.VALUE
@@ -126,8 +139,18 @@ class BinaryExpressionNode(ExpressionNode, Generic[V, F]):
 
     def children(self) -> list["ExpressionNode[V, F]"]:
         return [self.left, self.right]
+
     def all_variables(self) -> list[V]:
-        return self.left.all_variables() + self.right.all_variables()
+        result: list[V] = list()
+
+        # NOTE: We are doing it "full-scan" instead of set() becauseV is not Hashable
+        all_vars = self.left.all_variables() + self.right.all_variables()
+
+        for var in all_vars:
+            if var not in result:
+                result.append(var)
+
+        return result
 
     def __init__(self, operator: F,
                  left: ExpressionNode[V, F],
@@ -160,10 +183,19 @@ class FunctionExpressionNode(ExpressionNode, Generic[V, F]):
         return self.args
 
     def all_variables(self) -> list[V]:
-        vars: list[V] = []
+        result: list[V] = list()
+        all_vars: list[V] = list()
+
+        # NOTE: We are doing it "full-scan" instead of set() becauseV is not Hashable
         for arg in self.args:
-            vars += arg.all_variables()
-        return vars
+            all_vars += arg.all_variables()
+
+        for var in all_vars:
+            if var not in result:
+                result.append(var)
+
+        return result
+
 
     def __init__(self, function: F, args: list[ExpressionNode[V, F]]):
         self.function = function
@@ -182,7 +214,6 @@ class FunctionExpressionNode(ExpressionNode, Generic[V, F]):
     def __str__(self) -> str:
         args = ", ".join(str(arg) for arg in self.args)
         return f"{self.function}({args})"
-
 
 
 class VariableExpressionNode(ExpressionNode, Generic[V, F]):
