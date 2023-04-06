@@ -8,7 +8,9 @@ from typing import Optional, Iterator, TYPE_CHECKING
 from .version import VersionID, VersionState
 from .object import ObjectID, ObjectSnapshot
 
+
 if TYPE_CHECKING:
+
     from ..graph import UnboundGraph
 
 __all__ = [

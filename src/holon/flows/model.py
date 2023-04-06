@@ -11,9 +11,10 @@ from ..graph.predicate import \
         NodePredicate, \
         EdgePredicate, \
         HasComponentPredicate, \
-        NeighborhoodSelector, \
         EdgeDirection, \
         IsTypePredicate
+
+from ..graph import NeighborhoodSelector
 
 from ..db import Component, ObjectType, ObjectSnapshot
 from ..graph import Edge, Node

@@ -15,8 +15,7 @@ from ..db.frame import VersionFrame
 from ..db.transaction import Transaction
 
 if TYPE_CHECKING:
-    from .predicate import NodePredicate, EdgePredicate, Neighborhood, \
-    NeighborhoodSelector
+    from .predicate import NodePredicate, EdgePredicate
 
 __all__ = [
     "Graph",
@@ -24,6 +23,8 @@ __all__ = [
     "Edge",
 
     "EdgeDirection",
+    "NeighborhoodSelector",
+    "Neighborhood",
 
     "BoundGraph",
     "UnboundGraph",
@@ -69,9 +70,12 @@ class Edge(ObjectSnapshot):
 
     def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
         """Derive a new edge, keeping the same origin and target."""
-        derived = super().derive(version=version, id=id)
-        derived.origin = self.origin
-        derived.target = self.target
+        # FIXME: This is a workaround before I figure out how to have better structual components
+        derived = self.__class__(id=id or self.id,
+                                 version=version,
+                                 origin=self.origin,
+                                 target=self.target,
+                                 components = self.components.as_list())
 
         return derived
 
@@ -161,6 +165,36 @@ class Graph(Protocol):
         return (edge for edge in self.edges()
                 if predicate.match_edge(self, edge))
 
+
+    def topological_sort(self,
+                         to_sort: list[ObjectID],
+                         edges: list[Edge]) -> list[ObjectID]:
+        sorted: list[ObjectID] = list()
+        nodes: list[ObjectID] = list(to_sort)
+
+        # Create a copy
+        edges = list(edges)
+
+        targets = set(edge.target for edge in edges)
+        sources: list[ObjectID] = list(node for node in nodes
+                                       if node not in targets) 
+
+        while sources:
+            node = sources.pop()
+            sorted.append(node)
+            outgoings = list(edge for edge in edges if edge.origin == node)
+            for edge in outgoings:
+                m = edge.target
+                edges.remove(edge)
+                incomings = any(edge for edge in edges if edge.target == m)
+                # If there are no incoming edges ... 
+                if not incomings:
+                    sources.append(node)
+
+        if edges:
+            raise Exception("[UNHANDLED] Cycle")
+        else:
+            return sorted
 
 
 class MutableGraph(Graph, Protocol):
@@ -319,4 +353,58 @@ class BoundGraph(Graph):
 
     def contains_edge(self, id: ObjectID) -> bool:
         return id in self._edges
+
+
+class NeighborhoodSelector:
+    direction: "EdgeDirection"
+    predicate: "EdgePredicate"
+
+    def __init__(self,
+                 predicate: "EdgePredicate",
+                 direction: "EdgeDirection"):
+        self.direction = direction
+        self.predicate = predicate
+
+class Neighborhood:
+    graph: Graph
+    node_id: ObjectID
+    selector: NeighborhoodSelector
+    edges: Iterable[Edge]
+
+    def __init__(self,
+                 graph: Graph,
+                 node_id: ObjectID,
+                 selector: NeighborhoodSelector,
+                 edges: Iterable[Edge]):
+        """Create a neighbourhood query.
+
+        :param Graph graph: Graph containing the neighbourhood.
+        :param ObjectID node_id: The node that the neighbourhood is connected to.
+        :param NeighborhoodSelector selector: Selector used to create the query.
+        :param edges: Iterator over the edges from the graph that are part of the neighbourhood.
+
+        .. note:
+            Currently you should not create objects of this type. They are a
+            result from ``Graph.select_neighbors``.
+
+        """
+        self.graph = graph
+        self.selector = selector
+        self.node_id = node_id
+        self.edges = edges
+
+    @property
+    def nodes(self) -> Iterable[Node]:
+        """Get an iterator of nodes that are at the endpoing of the
+        neighbourhood edges specified by the ``direction``."""
+        for edge in self.edges:
+            node_id: ObjectID
+            match self.selector.direction:
+                case EdgeDirection.INCOMING: node_id = edge.origin
+                case EdgeDirection.OUTGOING: node_id = edge.target
+
+            if not (node := self.graph.node(node_id)):
+                # This should not happen
+                raise RuntimeError(f"Unknown node {node_id}")
+            yield node
 
