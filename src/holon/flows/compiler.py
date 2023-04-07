@@ -86,24 +86,51 @@ def bind_expression(expr: UnboundExpression,
 
 
 class CompiledModel:
-    # expressions: dict[ObjectID, BoundExpression]
+    """Compiled stocks-flows model into a representation that can be
+    interpreted directly by the simulator without requiring the graph.
+    """
+    expressions: dict[ObjectID, BoundExpression]
+    # TODO: We just need IDs here
     sorted_expression_nodes: list[Node]
-    # stock_components: dict[ObjectID, StockComponent]
+    """Expression nodes sorted in their order of evaluation dependency."""
+
+    auxiliaries: list[ObjectID]
+    """List of auxiliaries, in their order of evaluation (parameter)
+    dependency."""
+
+    flows: list[ObjectID]
+    """List of flows, in their order of evaluation (parameter)
+    dependency."""
+
+    stocks: list[ObjectID]
+    """List of stocks, in their order of evaluation (parameter)
+    dependency."""
+
+    stock_components: dict[ObjectID, StockComponent]
+    """Extracted components for stocks."""
     # flow_components: dict[ObjectID, FlowComponent]
 
-    # stock -> [flow]
-    # outflows: dict[Node, list[Node]]
-    # stock -> [flow]
-    # inflows: dict[Node, list[Node]]
+    outflows: dict[ObjectID, list[ObjectID]]
+    """Mapping of outflows from a stock. Key is the stock and value is a list
+    of flows which are draining the stock."""
+
+    inflows: dict[ObjectID, list[ObjectID]]
+    """Mapping of inflows to a stock. Key is the stock and value is a list
+    of flows which are filling the stock."""
 
 
     def __init__(self):
-        # self.expressions = dict()
+        self.expressions = dict()
         self.sorted_expression_nodes = list()
-        # self.stock_components = dict()
+        self.auxiliaries = list()
+        self.flows = list()
+        self.stocks = list()
+
+        self.stock_components = dict()
         # self.flow_components = dict()
-        # self.outflows = dict()
-        # self.inflows = dict()
+        self.outflows = dict()
+        self.inflows = dict()
+
 
 class DomainView:
     """Object providing Flows domain-specific view on a graph."""
