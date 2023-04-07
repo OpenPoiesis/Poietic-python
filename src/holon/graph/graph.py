@@ -13,6 +13,7 @@ from ..db.component import Component
 from ..db.version import VersionID, VersionState
 from ..db.frame import VersionFrame
 from ..db.transaction import Transaction
+from ..common import first
 
 if TYPE_CHECKING:
     from .predicate import NodePredicate, EdgePredicate
@@ -75,6 +76,7 @@ class Edge(ObjectSnapshot):
                                  version=version,
                                  origin=self.origin,
                                  target=self.target,
+                                 type=self.type,
                                  components = self.components.as_list())
 
         return derived
@@ -151,11 +153,14 @@ class Graph(Protocol):
         match selector.direction:
             case EdgeDirection.INCOMING: edges = self.incoming(id)
             case EdgeDirection.OUTGOING: edges = self.outgoing(id)
+
+        filtered_edges = (edge for edge in edges
+                          if selector.predicate.match_edge(self, edge))
         
         return Neighborhood(self,
                             selector=selector,
                             node_id=id,
-                            edges=edges)
+                            edges=filtered_edges)
 
     def select_nodes(self, predicate: "NodePredicate") -> Iterable[Node]:
         return (node for node in self.nodes()
@@ -165,6 +170,9 @@ class Graph(Protocol):
         return (edge for edge in self.edges()
                 if predicate.match_edge(self, edge))
 
+
+    # FIXME: We need to liberate the graph, but that is too complex in Python
+    # if we want to retain type annotations.
 
     def topological_sort(self,
                          to_sort: list[ObjectID],
@@ -189,12 +197,29 @@ class Graph(Protocol):
                 incomings = any(edge for edge in edges if edge.target == m)
                 # If there are no incoming edges ... 
                 if not incomings:
-                    sources.append(node)
+                    sources.append(m)
 
         if edges:
             raise Exception("[UNHANDLED] Cycle")
         else:
             return sorted
+
+
+    def debug_print(self):
+        print("NODES:")
+        for node in self.nodes():
+            if node.type:
+                typename = node.type.name
+            else:
+                typename = "(none)"
+            print(f"    {node.id}: {typename}")
+        print("EDGES:")
+        for edge in self.edges():
+            if edge.type:
+                typename = edge.type.name
+            else:
+                typename = "(none)"
+            print(f"    {edge.id}: {typename} {edge.origin} -> {edge.target}")
 
 
 class MutableGraph(Graph, Protocol):
@@ -410,8 +435,8 @@ class Neighborhood:
 
     @property
     def first_edge(self) -> Optional[Edge]:
-        return next(iter(self.edges))
+        return first(iter(self.edges))
 
     @property
     def first_node(self) -> Optional[Node]:
-        return next(iter(self.nodes))
+        return first(iter(self.nodes))

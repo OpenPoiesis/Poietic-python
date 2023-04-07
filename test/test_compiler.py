@@ -1,13 +1,15 @@
 import unittest
 
+from holon.common import first
 from holon.db import Database, Transaction, ObjectID
 from holon.graph import MutableUnboundGraph
 
 from holon.flows import Compiler, CompilerError, NodeIssueType
+from holon.flows import DomainView
 from holon.flows import Metamodel
 from holon.flows import ExpressionComponent
 
-class TestCompiler(unittest.TestCase):
+class TestDomainView(unittest.TestCase):
     db: Database
     trans: Transaction
     graph: MutableUnboundGraph
@@ -21,14 +23,6 @@ class TestCompiler(unittest.TestCase):
         pass
 
 
-    # Just a sanity check
-    def test_CompileEmpty(self):
-        compiler = Compiler(self.graph)
-        cmodel = compiler.compile()
-
-        self.assertTrue(len(cmodel.sorted_expression_nodes) == 0)
-    
-    
     def test_CompileSome(self):
         # a -> b -> c
         
@@ -46,7 +40,8 @@ class TestCompiler(unittest.TestCase):
         graph.create_edge(Metamodel.Parameter, a, b)
         graph.create_edge(Metamodel.Parameter, b, c)
         
-        compiler = Compiler(graph)
+        # FIXME: Make this a test for DomainView instead
+        compiler = Compiler(trans)
 
         compiled = compiler.compile()
         self.assertEqual(len(compiled.sorted_expression_nodes), 3)
@@ -55,20 +50,6 @@ class TestCompiler(unittest.TestCase):
         self.assertEqual(compiled.sorted_expression_nodes[2].id, c)
 
 
-    # def test_CompileOne(self):
-    #     let node = model.create(.auxiliary, name: "one", expression: "1")
-    #     
-    #     let compiler = Compiler(model: model)
-    #     let compiled = try compiler.compile()
-    #     self.assertEqual(compiled.auxiliaries.count, 1)
-    #     if let first = compiled.auxiliaries.first {
-    #         self.assertEqual(first, node)
-    #     
-    #     else {
-    #         XCTFail("Expected exactly one compiled node")
-    #     
-    # 
-    # 
     def test_collectNames(self):
         a = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="a",expression="0")])
@@ -78,7 +59,7 @@ class TestCompiler(unittest.TestCase):
                                [ExpressionComponent(name="c",expression="0")])
         # TODO: Check using violation checker
         
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
 
         names = compiler.collect_names()
 
@@ -99,7 +80,7 @@ class TestCompiler(unittest.TestCase):
         
         # TODO: Check using violation checker
         
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
 
         try:
             compiler.collect_names()
@@ -120,7 +101,7 @@ class TestCompiler(unittest.TestCase):
         l = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="l",
                                                     expression="sqrt(a*a + b*b)")])
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
 
         exprs = compiler.compile_expressions(names)
 
@@ -143,7 +124,7 @@ class TestCompiler(unittest.TestCase):
         self.graph.create_edge(Metamodel.Parameter, used, tested)
         self.graph.create_edge(Metamodel.Parameter, unused, tested)
         
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
         
         # TODO: Get the required list from the compiler
         issues = compiler.validate_inputs(node=tested, required=["used"])
@@ -161,7 +142,7 @@ class TestCompiler(unittest.TestCase):
         
         self.graph.create_edge(Metamodel.Parameter, known, tested)
         
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
 
         issues = compiler.validate_inputs(node=tested, required=["known",
                                                                  "unknown"])
@@ -179,7 +160,39 @@ class TestCompiler(unittest.TestCase):
         self.graph.create_edge(Metamodel.Drains, source, flow)
         self.graph.create_edge(Metamodel.Fills, flow, sink)
         
-        compiler = Compiler(self.graph)
+        compiler = DomainView(self.graph)
 
         self.assertEqual(compiler.flow_fills(flow), sink)
         self.assertEqual(compiler.flow_drains(flow), source)
+
+    def test_UpdateImplicitFlows(self):
+        flow = self.graph.create_node(Metamodel.Flow,
+                               [ExpressionComponent(name="f",expression="1")])
+        source = self.graph.create_node(Metamodel.Stock,
+                               [ExpressionComponent(name="source",expression="0")])
+        sink = self.graph.create_node(Metamodel.Stock,
+                               [ExpressionComponent(name="sink",expression="0")])
+
+        self.graph.create_edge(Metamodel.Drains, source, flow)
+        self.graph.create_edge(Metamodel.Fills, flow, sink)
+
+        compiler = Compiler(self.trans)
+        view = DomainView(self.graph)
+
+        self.assertEqual(len(view.implicit_drains(source)), 0)
+        self.assertEqual(len(view.implicit_fills(sink)), 0)
+        self.assertEqual(len(view.implicit_drains(source)), 0)
+        self.assertEqual(len(view.implicit_fills(sink)), 0)
+        
+        compiler.update_implicit_flows()
+
+        src_drains = view.implicit_drains(source)
+        sink_drains = view.implicit_drains(sink)
+        src_fills = view.implicit_fills(source)
+        sink_fills = view.implicit_fills(sink)
+       
+        self.assertEqual(len(src_drains), 0)
+        self.assertEqual(sink_drains[0], source)
+        self.assertEqual(src_fills[0], sink)
+        self.assertEqual(len(sink_fills), 0)
+

@@ -101,6 +101,9 @@ class ExpressionComponent(Component):
 
 # TODO: This should be in some inter-change format, simple DSL or something.
 
+# TODO: Add edge endpoint type constraints
+# TODO: Add dimension
+
 class Metamodel:
     Stock = ObjectType(
             name="Stock",
@@ -196,5 +199,15 @@ class Metamodel:
             direction=EdgeDirection.INCOMING,
         )
 
+    # Edge between stocks, derived by the compiler (not user).
+    #
     implicit_flow_edge = IsTypePredicate(ImplicitFlow)
+    implicit_fills = NeighborhoodSelector(
+            predicate=implicit_flow_edge,
+            direction=EdgeDirection.OUTGOING,
+        )
+    implicit_drains = NeighborhoodSelector(
+            predicate=implicit_flow_edge,
+            direction=EdgeDirection.INCOMING,
+        )
 

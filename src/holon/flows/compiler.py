@@ -4,8 +4,9 @@
 # Date: 2023-04-01
 
 from typing import cast, Optional
-from ..db import ObjectID
-from ..graph import Graph, Node, Edge
+from ..db import ObjectID, Transaction
+from ..graph import Graph, MutableUnboundGraph, Node, Edge
+from ..common import first_index, first
 from collections import defaultdict
 
 from .model import StockComponent, FlowComponent, ExpressionComponent
@@ -18,6 +19,7 @@ from .functions import BuiltinFunctions
 
 
 __all__ = [
+    "DomainView",
     "Compiler",
     "bind_expression",
 ]
@@ -103,56 +105,12 @@ class CompiledModel:
         # self.outflows = dict()
         # self.inflows = dict()
 
-class Compiler:
-    # This class became a bit schizophrenic - it is something between compiler
-    # and a view on top of a graph. The view works only when the graph has
-    # valid integrity.
-
+class DomainView:
+    """Object providing Flows domain-specific view on a graph."""
     graph: Graph
 
     def __init__(self, graph: Graph):
         self.graph = graph
-
-    def compile(self) -> CompiledModel:
-        compiled = CompiledModel()
-
-
-        # node_issues: dict[ObjectID, list[Exception]] = dict()
-
-        # TODO: Validate constraints
-        # TODO: Validate inputs
-        # TODO: Handle node issues
-        # TODO: Derive implicit edges
-
-        # 1. Collect names
-        names: dict[str, ObjectID]
-        names = self.collect_names()
-
-        # 2. Compile expressions
-        expressions: dict[ObjectID, BoundExpression]
-        expressions = self.compile_expressions(names)
-
-        # 3. Sort nodes in order of computation
-
-
-        sorted_nodes = self.sort_nodes(list(expressions.keys()))
-        compiled.sorted_expression_nodes = sorted_nodes
-
-        # Finalize and collect issues
-
-        return compiled
-    #
-    # def compile_expression(self, node: ObjectID, names: dict[str, ObjectID]):
-    #     component: ExpressionComponent
-    #
-    #     parser = ExpressionParser(component.expression)
-    #
-    #     # TODO: try:
-    #     unbound_expression = parser.parse()
-    #
-    #     # TODO: except -> throw NodeError
-    #
-    #     validate_inputs(node)
 
     def collect_names(self) -> dict[str, ObjectID]:
         """
@@ -264,6 +222,7 @@ class Compiler:
 
         return list(unknown_issues) + list(unused_issues)
 
+
     def sort_nodes(self, nodes: list[ObjectID]) -> list[Node]:
         """Sort the nodes based on parameter dependency."""
 
@@ -283,7 +242,6 @@ class Compiler:
         return result
 
 
-
     def flow_fills(self, flow_id: ObjectID) -> Optional[ObjectID]:
         # TODO: Can this be simplified?
         if not (flow_node := self.graph.node(flow_id)):
@@ -296,7 +254,8 @@ class Compiler:
             return node.id
         else:
             return None
-        
+
+
     def flow_drains(self, flow_id: ObjectID) -> Optional[ObjectID]:
         # TODO: Can this be simplified?
         if not (flow_node := self.graph.node(flow_id)):
@@ -309,15 +268,125 @@ class Compiler:
             return node.id
         else:
             return None
+
+
+    def implicit_fills(self, stock_id: ObjectID) -> list[ObjectID]:
+        # TODO: Can this be simplified?
+        if not (stock_node := self.graph.node(stock_id)):
+            raise RuntimeError(f"No flow node {stock_id}")
+        assert stock_node.type is Metamodel.Stock
+
+        hood = self.graph.select_neighbors(stock_id, Metamodel.implicit_fills)
+
+        return list(node.id for node in hood.nodes) 
+
+
+    def implicit_drains(self, stock_id: ObjectID) -> list[ObjectID]:
+        # TODO: Can this be simplified?
+        if not (stock_node := self.graph.node(stock_id)):
+            raise RuntimeError(f"No flow node {stock_id}")
+        assert stock_node.type is Metamodel.Stock
+
+        hood = self.graph.select_neighbors(stock_id, Metamodel.implicit_drains)
+
+        return list(node.id for node in hood.nodes) 
         
 
-    def _implicit_flows(self):
 
-        existing: list[Edge] = list(self.graph.select_edges(Metamodel.implicit_flow_edge)) # FIXME: Existing flows
+class Compiler:
+    """Object that updates the graph with derived information and creates a
+    compiled model."""
 
-        for flow in self.graph.select_nodes(Metamodel.flow_nodes):
-            if not (fills := self.flow_fills(flow.id)):
-                pass
-            pass
+    graph: MutableUnboundGraph
+    transaction: Transaction
+    view: DomainView
+
+    def __init__(self, transaction: Transaction):
+        self.transaction = transaction
+        self.graph = MutableUnboundGraph(transaction)
+        self.view = DomainView(self.graph)
+
+    def compile(self) -> CompiledModel:
+        compiled = CompiledModel()
+
+
+        # node_issues: dict[ObjectID, list[Exception]] = dict()
+
+        # TODO: Validate constraints
+        # TODO: Validate inputs
+        # TODO: Handle node issues
+        # TODO: Derive implicit edges
+
+        # 1. Collect names
+        names: dict[str, ObjectID]
+        names = self.view.collect_names()
+
+        # 2. Compile expressions
+        expressions: dict[ObjectID, BoundExpression]
+        expressions = self.view.compile_expressions(names)
+
+        # 3. Sort nodes in order of computation
+
+
+        sorted_nodes = self.view.sort_nodes(list(expressions.keys()))
+        compiled.sorted_expression_nodes = sorted_nodes
+
+        # Finalize and collect issues
+
+        return compiled
+    #
+    # def compile_expression(self, node: ObjectID, names: dict[str, ObjectID]):
+    #     component: ExpressionComponent
+    #
+    #     parser = ExpressionParser(component.expression)
+    #
+    #     # TODO: try:
+    #     unbound_expression = parser.parse()
+    #
+    #     # TODO: except -> throw NodeError
+    #
+    #     validate_inputs(node)
+
+    def update_implicit_flows(self):
+        """Updates the implicit flows between stocks.
+
+        Implicit flows are edges between two stocks where the origin of the
+        edge is a stock which the flow drains and the target of the edge is a
+        stock which the flow fills.
+
+        This function removes implicit edges that have no flow and adds new
+        edges when there are new flows.
+        """
+        existing: list[Edge] = list(self.graph.select_edges(Metamodel.implicit_flow_edge))
+        keep: list[ObjectID] = list()
+
+        for flow in list(self.graph.select_nodes(Metamodel.flow_nodes)):
+            if not (fills := self.view.flow_fills(flow.id)):
+                continue
+            if not (drains := self.view.flow_drains(flow.id)):
+                continue
+            
+            # Lambda would be better, but type-annotating lambdas is a bit of a
+            # pain
+
+            index: Optional[int] = None
+
+            for (i, edge) in enumerate(existing):
+                if edge.origin == drains and edge.target == fills:
+                    index = i
+                    break
+
+            if index is not None:
+                del existing[index]
+                continue
+
+            self.graph.create_edge(Metamodel.ImplicitFlow,
+                                   origin=drains,
+                                   target=fills)
+
+        # Clean-up unused edges
+        for edge in existing:
+            self.graph.remove_edge(edge.id)
+
     
 
