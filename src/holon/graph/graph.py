@@ -408,3 +408,10 @@ class Neighborhood:
                 raise RuntimeError(f"Unknown node {node_id}")
             yield node
 
+    @property
+    def first_edge(self) -> Optional[Edge]:
+        return next(iter(self.edges))
+
+    @property
+    def first_node(self) -> Optional[Node]:
+        return next(iter(self.nodes))

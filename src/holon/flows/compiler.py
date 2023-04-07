@@ -3,7 +3,7 @@
 # Created by: Stefan Urbanek
 # Date: 2023-04-01
 
-from typing import cast
+from typing import cast, Optional
 from ..db import ObjectID
 from ..graph import Graph, Node, Edge
 from collections import defaultdict
@@ -104,6 +104,10 @@ class CompiledModel:
         # self.inflows = dict()
 
 class Compiler:
+    # This class became a bit schizophrenic - it is something between compiler
+    # and a view on top of a graph. The view works only when the graph has
+    # valid integrity.
+
     graph: Graph
 
     def __init__(self, graph: Graph):
@@ -261,8 +265,9 @@ class Compiler:
         return list(unknown_issues) + list(unused_issues)
 
     def sort_nodes(self, nodes: list[ObjectID]) -> list[Node]:
-        # FIXME: Quickly hacked together.
-        edges: list[Edge] = list()
+        """Sort the nodes based on parameter dependency."""
+
+        edges: list[Edge] = list(self.graph.select_edges(Metamodel.parameter_edges))
         
         sorted = self.graph.topological_sort(nodes, edges)
 
@@ -278,5 +283,41 @@ class Compiler:
         return result
 
 
+
+    def flow_fills(self, flow_id: ObjectID) -> Optional[ObjectID]:
+        # TODO: Can this be simplified?
+        if not (flow_node := self.graph.node(flow_id)):
+            raise RuntimeError(f"No flow node {flow_id}")
+        assert flow_node.type is Metamodel.Flow
+
+        hood = self.graph.select_neighbors(flow_id, Metamodel.fills)
+
+        if (node := hood.first_node):
+            return node.id
+        else:
+            return None
+        
+    def flow_drains(self, flow_id: ObjectID) -> Optional[ObjectID]:
+        # TODO: Can this be simplified?
+        if not (flow_node := self.graph.node(flow_id)):
+            raise RuntimeError(f"No flow node {flow_id}")
+        assert flow_node.type is Metamodel.Flow
+
+        hood = self.graph.select_neighbors(flow_id, Metamodel.drains)
+
+        if (node := hood.first_node):
+            return node.id
+        else:
+            return None
+        
+
+    def _implicit_flows(self):
+
+        existing: list[Edge] = list(self.graph.select_edges(Metamodel.implicit_flow_edge)) # FIXME: Existing flows
+
+        for flow in self.graph.select_nodes(Metamodel.flow_nodes):
+            if not (fills := self.flow_fills(flow.id)):
+                pass
+            pass
     
 

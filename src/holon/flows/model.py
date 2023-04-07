@@ -99,6 +99,8 @@ class ExpressionComponent(Component):
 # Flows Meta Model
 # --------------------------------------------------------------------------
 
+# TODO: This should be in some inter-change format, simple DSL or something.
+
 class Metamodel:
     Stock = ObjectType(
             name="Stock",
@@ -154,6 +156,14 @@ class Metamodel:
                 # None for now,
             ])
 
+    # Internal type
+    ImplicitFlow = ObjectType(
+            name="ImplicitFlow",
+            structural_type = Edge,
+            component_types=[
+                # None for now,
+            ])
+
     # Prototypes
     # ----------------------------------------------------------------------
 
@@ -165,8 +175,26 @@ class Metamodel:
     # ----------------------------------------------------------------------
      
     expression_nodes = HasComponentPredicate(ExpressionComponent)
+    flow_nodes = IsTypePredicate(Flow)
+
+    parameter_edges = IsTypePredicate(Parameter)
     incoming_parameters = NeighborhoodSelector(
-            predicate=IsTypePredicate(Parameter),
+            predicate=parameter_edges,
             direction=EdgeDirection.INCOMING,
         )
+
+    # FIXME: This is emegent complexity that needs to be polished.
+    # TODO: Have Graph.select_neigbors(object_type)
+    fills_edge = IsTypePredicate(Fills)
+    fills = NeighborhoodSelector(
+            predicate=fills_edge,
+            direction=EdgeDirection.OUTGOING,
+        )
+    drains_edge = IsTypePredicate(Drains)
+    drains = NeighborhoodSelector(
+            predicate=drains_edge,
+            direction=EdgeDirection.INCOMING,
+        )
+
+    implicit_flow_edge = IsTypePredicate(ImplicitFlow)
 
