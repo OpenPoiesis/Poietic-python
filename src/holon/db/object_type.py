@@ -8,7 +8,6 @@
 
 from typing import Type, Optional, TYPE_CHECKING
 
-from enum import Enum
 from .component import Component
 
 if TYPE_CHECKING:

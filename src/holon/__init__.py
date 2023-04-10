@@ -9,4 +9,4 @@
 
 from .db import *
 from .graph import *
-from . import flows
+from . import flows  # pyright: ignore

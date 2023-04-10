@@ -1,6 +1,7 @@
-from typing import TypeVar, Generic, Any, ClassVar, cast
+from typing import TypeVar, Generic, ClassVar, cast
 from abc import abstractmethod
 from enum import Enum, auto
+from ...value import ValueProtocol
 
 __all__ = [
     "NullExpressionNode",
@@ -14,8 +15,6 @@ __all__ = [
     "UnboundExpression",
 ]
 
-# FIXME: Value protocol is not yet implemented.
-ValueProtocol = Any
 
 
 V = TypeVar('V')

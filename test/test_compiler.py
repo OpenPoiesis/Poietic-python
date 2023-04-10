@@ -1,6 +1,5 @@
 import unittest
 
-from holon.common import first
 from holon.db import Database, Transaction, ObjectID
 from holon.graph import MutableUnboundGraph
 
@@ -49,13 +48,17 @@ class TestDomainView(unittest.TestCase):
         self.assertEqual(compiled.sorted_expression_nodes[1].id, b)
         self.assertEqual(compiled.sorted_expression_nodes[2].id, c)
 
+        self.assertIn(a, compiled.expressions)
+        self.assertIn(b, compiled.expressions)
+        self.assertIn(c, compiled.expressions)
+
 
     def test_collectNames(self):
-        a = self.graph.create_node(Metamodel.Stock,
+        _ = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="a",expression="0")])
-        b = self.graph.create_node(Metamodel.Stock,
+        _ = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="b",expression="0")])
-        c = self.graph.create_node(Metamodel.Stock,
+        _ = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="c",expression="0")])
         # TODO: Check using violation checker
         
@@ -73,9 +76,9 @@ class TestDomainView(unittest.TestCase):
                                [ExpressionComponent(name="things",expression="0")])
         c2 = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="things",expression="0")])
-        a = self.graph.create_node(Metamodel.Stock,
+        _ = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="a",expression="0")])
-        b = self.graph.create_node(Metamodel.Stock,
+        _ = self.graph.create_node(Metamodel.Stock,
                                [ExpressionComponent(name="b",expression="0")])
         
         # TODO: Check using violation checker

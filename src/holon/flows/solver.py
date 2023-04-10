@@ -10,10 +10,24 @@ from ..db import ObjectID
 from .compiler import CompiledModel
 from .compiler import BoundExpression
 from .model import StockComponent
+from .evaluate import evaluate_expression
+
+from collections.abc import Container
+
+__all__ = [
+        "StateVector",
+        "Solver",
+        "EulerSolver",
+        "RK4Solver",
+]
 
 
-class StateVector:
+class StateVector(Container):
+    """Vector holing state of the simulation."""
+
+    # TODO: Change this into array once we care about performance.
     values: dict[ObjectID, float]
+    """Vector values. Keys are node references and values are computed values."""
 
     def __init__(self):
         self.values = dict()
@@ -23,6 +37,9 @@ class StateVector:
     
     def __getitem__(self, key: ObjectID) -> float:
         return self.values[key]
+
+    def __contains__(self, key: ObjectID) -> bool:
+        return key in self.values
 
     def add(self, other: "StateVector") -> "StateVector":
         new = StateVector()
@@ -42,6 +59,39 @@ class StateVector:
 
 
 class Solver:
+    """
+    Abstract class for equation solvers.
+
+    Purpose of the solver is to initialise values of the nodes and then to
+    compute each step of the simulation.
+
+    Usage:
+
+    .. code-block::
+        :caption: Usage of a solver.
+
+        # Assume we have the compiled model:
+        compiled_model: CompiledModel
+
+        solver: Solver = EulerSolver(compiled_model)
+        t0: float = 0.0
+        time_delta = 1.0
+
+        state: StateVector
+        state = solver.initialize(time = t0)
+
+        
+        t = t0
+
+        while t < 10:
+            new_state = solver.compute(time=time, state)
+            t += time_delta
+
+            # Do something with new_state, for example visualize or print
+            # it...
+
+            state = new_state
+    """ 
     model: CompiledModel
 
     def __init__(self, model: CompiledModel):
@@ -63,7 +113,11 @@ class Solver:
                  time: float,
                  state: StateVector,
                  time_delta: float = 1.0) ->float:
-        return 0.0
+
+        # TODO: Add time and time_delta
+        return evaluate_expression(expression,
+                                   variables=state.values,
+                                   functions=dict())
 
     @abstractmethod
     def compute(self,

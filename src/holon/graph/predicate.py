@@ -8,11 +8,11 @@
 #
 
 
-from typing import Protocol, Type, Iterable
+from typing import Protocol, Type
 
-from .graph import Graph, Node, Edge, EdgeDirection
+from .graph import Graph, Node, Edge
 
-from ..db.object import ObjectSnapshot, ObjectType, ObjectID
+from ..db.object import ObjectSnapshot, ObjectType
 from ..db.component import Component
 
 
@@ -43,7 +43,7 @@ class ObjectPredicate(NodePredicate, EdgePredicate, Protocol):
         ...
 
 class AnyPredicate(ObjectPredicate):
-    def match(self, graph: Graph, object: ObjectSnapshot) -> bool:
+    def match(self, graph: Graph, object: ObjectSnapshot) -> bool: # pyright: ignore
         return True
 
 
@@ -53,7 +53,7 @@ class HasComponentPredicate(ObjectPredicate):
     def __init__(self, component_type: Type[Component]):
         self.component_type = component_type
 
-    def match(self, graph: Graph, object: ObjectSnapshot) -> bool:
+    def match(self, graph: Graph, object: ObjectSnapshot) -> bool: # pyright: ignore
         return object.components.has(self.component_type)
     
 class IsTypePredicate(ObjectPredicate):
@@ -62,6 +62,6 @@ class IsTypePredicate(ObjectPredicate):
     def __init__(self, object_type: ObjectType):
         self.object_type = object_type
 
-    def match(self, graph: Graph, object: ObjectSnapshot) -> bool:
+    def match(self, graph: Graph, object: ObjectSnapshot) -> bool: # pyright: ignore
         return object.type is self.object_type
 

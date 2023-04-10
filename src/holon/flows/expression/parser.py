@@ -4,7 +4,7 @@
 # Date: 2023-03-31
 #
 
-from typing import Optional, Callable, Union, cast, Any
+from typing import Optional, Union, cast
 from enum import Enum, auto
 
 from .lexer import Lexer, TokenType, Token, ParserError

@@ -3,86 +3,27 @@
 # Created by: Stefan Urbanek
 # Date: 2023-04-01
 
-from typing import cast, Optional
+from typing import Optional
 from ..db import ObjectID, Transaction
 from ..graph import Graph, MutableUnboundGraph, Node, Edge
-from ..common import first_index, first
 from collections import defaultdict
 
-from .model import StockComponent, FlowComponent, ExpressionComponent
+from .model import StockComponent, ExpressionComponent
 from .model import Metamodel
 from .expression import *
 from .expression.parser import ExpressionParser
 
-from .issues import CompilerError, NodeIssueType, NodeIssue
+from .issues import CompilerError, NodeIssue
 from .functions import BuiltinFunctions
+
+from .evaluate import BoundExpression, bind_expression
 
 
 __all__ = [
     "DomainView",
     "Compiler",
-    "bind_expression",
 ]
 
-VariableReference = ObjectID
-FunctionReference = str
-
-BoundExpression = ExpressionNode[VariableReference, FunctionReference]
-
-
-def bind_expression(expr: UnboundExpression,
-                    variables: dict[str, VariableReference],
-                    functions: dict[str, FunctionReference]) -> BoundExpression:
-    """
-    Binds the unbound expression to concrete variable and function references.
-
-    :param variables: Mapping of variable names to variable references.
-    :param functions: Mapping of function names to function references.
-
-    :return: Expression bound to the references.
-    :raises: Exception when variable or function is not found.
-    """
-    # TODO: Use custom exceptions and distinguish between missing variable and missing function.
-    # NOTE: This would be better with enum, but this is all we have in Python
-
-    if isinstance(expr, NullExpressionNode):
-        return cast(BoundExpression, expr)
-
-    elif isinstance(expr, ValueExpressionNode):
-        return cast(BoundExpression, expr)
-
-    elif isinstance(expr, UnaryExpressionNode):
-        new = UnaryExpressionNode(operator=functions[expr.operator],
-                                  operand=bind_expression(expr.operand,
-                                                       variables,
-                                                       functions))
-        return new
-
-    elif isinstance(expr, BinaryExpressionNode):
-        new = BinaryExpressionNode(operator=functions[expr.operator],
-                                  left=bind_expression(expr.left,
-                                                       variables,
-                                                       functions),
-                                  right=bind_expression(expr.right,
-                                                       variables,
-                                                       functions))
-        return new
-
-    elif isinstance(expr, FunctionExpressionNode):
-        args: list[BoundExpression] = list()
-
-        for arg in expr.args:
-            args.append(bind_expression(arg, variables, functions))
-
-        new = FunctionExpressionNode(function=functions[expr.function],
-                                     args=args)
-        return new
-
-    elif isinstance(expr, VariableExpressionNode):
-        new = VariableExpressionNode(variables[expr.variable])
-        return new
-    else:
-        raise RuntimeError(f"Unknown expression node type: {expr}")
 
 
 class CompiledModel:
@@ -147,7 +88,6 @@ class DomainView:
 
         :raises Exception: when duplicate names are found.
         """
-        # import pdb; pdb.set_trace();
         names: defaultdict[str, list[ObjectID]] = defaultdict(list)
         issues: defaultdict[ObjectID, list[NodeIssue]] = defaultdict(list)
 
@@ -351,6 +291,7 @@ class Compiler:
         # 2. Compile expressions
         expressions: dict[ObjectID, BoundExpression]
         expressions = self.view.compile_expressions(names)
+        compiled.expressions = expressions
 
         # 3. Sort nodes in order of computation
 
@@ -385,7 +326,6 @@ class Compiler:
         edges when there are new flows.
         """
         existing: list[Edge] = list(self.graph.select_edges(Metamodel.implicit_flow_edge))
-        keep: list[ObjectID] = list()
 
         for flow in list(self.graph.select_nodes(Metamodel.flow_nodes)):
             if not (fills := self.view.flow_fills(flow.id)):

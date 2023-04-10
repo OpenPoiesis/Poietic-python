@@ -5,8 +5,8 @@
 
 # pyright: ignore [reportUnusedImport, reportUnusedClass]
 #
-from .expression import parser
-from .expression import lexer
+from .expression import parser # pyright: ignore
+from .expression import lexer # pyright: ignore
 
 from .model import *
 from .compiler import *

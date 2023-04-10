@@ -7,6 +7,6 @@
 #
 
 # These modules are quite low-level, we are not exposing them at the top-level
-from . import parser
-from . import lexer
+from . import parser # pyright: ignore
+from . import lexer # pyright: ignore
 from .expression import *

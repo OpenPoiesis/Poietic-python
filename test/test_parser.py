@@ -1,12 +1,11 @@
 import unittest
 
-from holon.flows.expression.parser import Lexer, TokenType, Token, ParserError
+from holon.flows.expression.parser import Lexer, TokenType, ParserError
 from holon.flows.expression.parser import ExpressionParser, SyntaxError
 from holon.flows.expression import \
-        UnboundExpression, \
         ValueExpressionNode, \
-       VariableExpressionNode, \
-       BinaryExpressionNode, \
+        VariableExpressionNode, \
+        BinaryExpressionNode, \
         UnaryExpressionNode, \
         FunctionExpressionNode
 
