@@ -7,7 +7,9 @@
 #
 from .expression import parser # pyright: ignore
 from .expression import lexer # pyright: ignore
+from .expression.expression import * # pyright: ignore
 
 from .model import *
 from .compiler import *
 from .issues import *
+from .solver import *

@@ -74,23 +74,41 @@ class ErrorComponent(Component):
 #
 
 class FlowComponent(Component):
+    """Component for flow nodes."""
     component_name: ClassVar[str] = "Flow"
 
     priority: int
+    """Flow priority for evaluation of non-negative stock outflows."""
 
 
 class StockComponent(Component):
     component_name: ClassVar[str] = "Stock"
 
     allows_negative: bool
-    delayed_inflow: bool
+    """
+    Flag whether the stock allows non-negative value. If `False` then the
+    stock value is constrained to be >= 0. This affects the evaluation.
+    """
 
+    delayed_inflow: bool
+    """
+    Flag wether the inflow will be delayed during evaluation.
+
+    Delaying inflow is required when there are flow-based cycles between
+    stocks - that is when an outflow of a stock results in an inflow of the same stock
+    through a chain of of other flows.
+    """
 
 class ExpressionComponent(Component):
+    """Core component containing the arithemtic expression for a node."""
+
     component_name: ClassVar[str] = "Expression"
 
     name: str
+    """Name of the node that is used in arithmetic expressions."""
     expression: str
+
+    """Arithmetic expression of the node."""
 
     def __init__(self, name: str, expression: str):
         self.name = name
@@ -106,6 +124,34 @@ class ExpressionComponent(Component):
 # TODO: Add dimension
 
 class Metamodel:
+    """A singleton object describing the details of the Stocks and Flows domain
+    model.
+
+    This object is used as a source of truth - list of types, queries and other
+    elements that formalize the domain model.
+
+    All queries should be described in this object and the system should refer
+    to these queries by their names.
+
+    All node types should be described in this object and the system must not
+    create nodes that are not defined here.
+
+
+    .. note:
+        We are using a Python class and class variables for simplicity. No
+        instances of this class should be created.
+
+    .. note:
+        In the future there is a plan for validation of the model based on this
+        metamodel description.
+
+    .. note:
+        This metamodel will be used in the future for validatin imports of
+        models from external sources.
+
+    """
+
+
     Stock = ObjectType(
             name="Stock",
             structural_type = Node,
@@ -117,6 +163,7 @@ class Metamodel:
                 StockComponent,
             ],
             )
+    """Objec type for Stock nodes."""
 
     Flow = ObjectType(
             name="Flow",
@@ -128,6 +175,7 @@ class Metamodel:
                 # ErrorComponent,
                 FlowComponent,
             ])
+    """Objec type for Flow nodes."""
 
     Auxiliary = ObjectType(
             name="Auxiliary",
@@ -138,6 +186,7 @@ class Metamodel:
                 # DescriptionComponent,
                 # ErrorComponent,
             ])
+    """Objec type for Auxiliary nodes."""
 
     Fills = ObjectType(
             name="Fills",
@@ -145,6 +194,8 @@ class Metamodel:
             component_types=[
                 # None for now,
             ])
+    """Object type for edges originating in a flow and ending in a stocks
+    representing the flow filling the stock."""
      
     Drains = ObjectType(
             name="Drains",
@@ -152,6 +203,8 @@ class Metamodel:
             component_types=[
                 # None for now,
             ])
+    """Object type for edges originating in a stock and ending in a flow
+    representing the flow draining the stock."""
      
     Parameter = ObjectType(
             name="Parameter",
@@ -159,6 +212,8 @@ class Metamodel:
             component_types=[
                 # None for now,
             ])
+    """Object type for edges originating in a parameter node (any expression
+    node) and ending in a node using the parameter value."""
 
     # Internal type
     ImplicitFlow = ObjectType(
@@ -167,6 +222,26 @@ class Metamodel:
             component_types=[
                 # None for now,
             ])
+    """
+    Object type for edges originating in a stock and ending in a stock where
+    the originating stocks fills the target stock through a flow in between
+    them.
+
+    For example: let us have two stocks, one named _source_ and another named
+    _sink_, and a flow in between them::
+
+                 (drains)         (fills)
+        source -----------> flow ---------> sink
+
+    This edge represents the edge::
+
+                 (drains)         (fills)
+        source -----------> flow ---------> sink
+           |                                  ^
+           +----------------------------------+
+                        (implicit flow)
+
+    """
 
     # Prototypes
     # ----------------------------------------------------------------------

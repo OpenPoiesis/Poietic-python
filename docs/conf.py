@@ -7,8 +7,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Holon'
-copyright = '2023, Stefan Urbanek, Bojan Coka'
-author = 'Stefan Urbanek, Bojan Coka'
+copyright = '2023, Stefan Urbanek'
+author = 'Stefan Urbanek'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

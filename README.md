@@ -39,4 +39,3 @@ The documentation will be created in the `_build/html` directory.
 ## Authors
 
 * Stefan Urbanek, stefan.urbanek@gmail.com
-* Bojan Coka

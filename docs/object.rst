@@ -24,3 +24,5 @@ Components
 Components contain the object's data.
 
 .. autoclass:: holon.Component
+
+.. autoclass:: holon.ComponentSet

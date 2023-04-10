@@ -19,9 +19,25 @@ __all__ = [
 ]
 
 VariableReference = ObjectID
+"""Type representing a reference to a resolved variable.
+
+The type is used in a bound expression for evaluation. Values are created by the compiler.
+"""
+
 FunctionReference = str
+"""Type representing a reference to a function.
+
+Type is used in a bound expression for evaluation. Values are created by the
+compiler.
+"""
 
 BoundExpression = ExpressionNode[VariableReference, FunctionReference]
+"""Type representing and expression that is bound to concrete, resolved variable and
+function references.
+
+Bound expressions are created by a compiler and used by an experssion
+evaluator, usually called by a solver.
+"""
 
 def bind_expression(expr: UnboundExpression,
                     variables: dict[str, VariableReference],
