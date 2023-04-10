@@ -12,6 +12,7 @@ __all__ = [
     "FunctionExpressionNode",
 
     "ExpressionNode",
+    "ExpressionKind",
     "UnboundExpression",
 ]
 
@@ -40,6 +41,9 @@ class ExpressionKind(Enum):
 
 
 class ExpressionNode(Generic[V, F]):
+    """Abstract class for all expression nodes. The sublcasses are required to
+    implement the methods `children()` and `all_variables()`."""
+
     kind: ClassVar[ExpressionKind]
 
     @abstractmethod
@@ -57,6 +61,7 @@ class ExpressionNode(Generic[V, F]):
         pass
 
 
+# TODO: Is this still needed?
 class NullExpressionNode(ExpressionNode, Generic[V, F]):
     kind: ClassVar[ExpressionKind] = ExpressionKind.NULL
 
@@ -77,9 +82,12 @@ class NullExpressionNode(ExpressionNode, Generic[V, F]):
 
 
 class ValueExpressionNode(ExpressionNode, Generic[V, F]):
+    """Expression node representing a concrete value."""
+
     kind: ClassVar[ExpressionKind] = ExpressionKind.VALUE
 
     value: ValueProtocol
+    """The value the node represents."""
 
     def children(self) -> list["ExpressionNode[V, F]"]:
         return []
@@ -103,10 +111,14 @@ class ValueExpressionNode(ExpressionNode, Generic[V, F]):
 
 
 class UnaryExpressionNode(ExpressionNode, Generic[V, F]):
+    """Expression node representing an unary operation."""
+
     kind: ExpressionKind = ExpressionKind.UNARY
 
     operator: F
+    """Unary operator"""
     operand: ExpressionNode[V, F]
+    """Operand of the operator"""
 
     def children(self) -> list["ExpressionNode[V, F]"]:
         return [self.operand]
@@ -130,11 +142,17 @@ class UnaryExpressionNode(ExpressionNode, Generic[V, F]):
         return f"{self.operator}{self.operand}"
 
 class BinaryExpressionNode(ExpressionNode, Generic[V, F]):
+    """Expression node representing a binary expression. For example an
+    expression ``x + y``."""
+
     kind: ExpressionKind = ExpressionKind.BINARY
     operator: F
+    """Binary operator."""
 
     left: ExpressionNode
+    """Left operand of the expression."""
     right: ExpressionNode
+    """Right operand of the expression."""
 
     def children(self) -> list["ExpressionNode[V, F]"]:
         return [self.left, self.right]
@@ -173,10 +191,14 @@ class BinaryExpressionNode(ExpressionNode, Generic[V, F]):
 
 
 class FunctionExpressionNode(ExpressionNode, Generic[V, F]):
+    """Expression node representing a function call, for example ``max(a, b)``."""
     kind: ExpressionKind = ExpressionKind.FUNCTION
 
     function: F
+    """Function reference."""
+
     args: list[ExpressionNode]
+    """List of function arguments."""
 
     def children(self) -> list["ExpressionNode[V, F]"]:
         return self.args
@@ -216,6 +238,7 @@ class FunctionExpressionNode(ExpressionNode, Generic[V, F]):
 
 
 class VariableExpressionNode(ExpressionNode, Generic[V, F]):
+    """Expression nod representing a variable - a reference or a name."""
     kind: ExpressionKind = ExpressionKind.VARIABLE
 
     variable: V

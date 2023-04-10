@@ -25,6 +25,7 @@ class SyntaxError(Exception):
 
 
 class ExpressionASTKind(Enum):
+    """Kind of the arithmetic expression AST node."""
     # [INT]
     INT = auto()
     # [DOUBLE]
@@ -45,14 +46,21 @@ class ExpressionASTKind(Enum):
 
 
 ExpressionASTItem = Union[Token, "ExpressionAST"]
+"""Item of the expression AST node."""
 
 class ExpressionAST:
+    """Object representing the arithmetic expression AST node."""
     # Note: We are being a bit lazy here with Python, since it does not have a
     # nice way to support algebraic sum data type
     #
     kind: ExpressionASTKind
+    """Kind of the node."""
+
     items: list[ExpressionASTItem]
+    """Children of the node."""
+
     def __init__(self, kind: ExpressionASTKind, items: list[ExpressionASTItem]):
+        """Create a new AST node with given node `kind` and children `items`."""
         self.kind = kind
         self.items = items
 
@@ -63,9 +71,12 @@ class ExpressionAST:
 
 
 class ExpressionParser:
+    """Parser of the arithmetic expression. The object serves as a parsing
+    context for a function `parse()` that converts the expression source string
+    into an unbound expression object."""
+
     lexer: Lexer
     current_token: Optional[Token]
-    
     
     def __init__(self, string: str):
         """
@@ -307,6 +318,10 @@ class ExpressionParser:
                 return FunctionExpressionNode(func, unbound_args)
             
     def parse(self) -> UnboundExpression:
+        """Parse the parser string and return an unbound arithmetic expression.
+        If any error occured during the parsing process then the `SyntaxError`
+        is raised."""
+
         if not (expr := self.expression()):
             raise SyntaxError(ParserError.EXPRESSION_EXPECTED)
         

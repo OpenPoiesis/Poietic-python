@@ -57,18 +57,26 @@ class LocationComponent(Component):
     component_name: ClassVar[str] = "Location"
 
     point: tuple[float, float]
+    """Location of the design object within its design canvas."""
 
 class DescriptionComponent(Component):
     """Component containing human-targeted object description. Designer
     stores more detailed information in this component.
     """
     component_name: ClassVar[str] = "Description"
+
     description: str
+    """Human-readable textual description of the associated design object."""
 
 class ErrorComponent(Component):
     """Component cotnaining list of compilation/interpretation errors related
-    to the object."""
+    to the object.
+
+    .. note::
+        This component is not persistable - not available for import/export.
+    """
     errors: list[Exception]
+    """List of errors associated with the object."""
 
 # Specific components
 #
