@@ -10,3 +10,8 @@
 from .db import *
 from .graph import *
 from . import flows  # pyright: ignore
+
+from .expression import parser # pyright: ignore
+from .expression import lexer # pyright: ignore
+from .expression.expression import * # pyright: ignore
+

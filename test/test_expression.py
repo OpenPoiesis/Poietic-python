@@ -1,7 +1,7 @@
 import unittest
 
 # from holon.flows.expression import UnboundExpression
-from holon.flows.expression.parser import ExpressionParser
+from holon.expression.parser import ExpressionParser
 
 class TestExpression(unittest.TestCase):
     def test_variables(self):

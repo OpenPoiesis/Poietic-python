@@ -8,7 +8,7 @@
 from typing import cast
 from ..db import ObjectID
 
-from .expression import *
+from ..expression import *
 
 __all__ = [
         "VariableReference",

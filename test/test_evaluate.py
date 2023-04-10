@@ -1,6 +1,6 @@
 import unittest
 
-from holon.flows.expression.parser import ExpressionParser
+from holon.expression.parser import ExpressionParser
 from holon.flows.evaluate import bind_expression, evaluate_expression
 
 class EvaluationTestCase(unittest.TestCase):

@@ -1,7 +1,7 @@
 from typing import TypeVar, Generic, ClassVar, cast
 from abc import abstractmethod
 from enum import Enum, auto
-from ...value import ValueProtocol
+from ..value import ValueProtocol
 
 __all__ = [
     "NullExpressionNode",

@@ -10,8 +10,8 @@ from collections import defaultdict
 
 from .model import StockComponent, ExpressionComponent
 from .model import Metamodel
-from .expression import *
-from .expression.parser import ExpressionParser
+from ..expression import *
+from ..expression.parser import ExpressionParser
 
 from .issues import CompilerError, NodeIssue
 from .functions import BuiltinFunctions
