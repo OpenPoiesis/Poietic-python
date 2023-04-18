@@ -1,7 +1,7 @@
 import unittest
 
 from holon.db import Database, Transaction, ObjectID
-from holon.graph import MutableUnboundGraph
+from holon.db import MutableUnboundGraph
 
 from holon.flows import Compiler, CompilerError, NodeIssueType
 from holon.flows import DomainView

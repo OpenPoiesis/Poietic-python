@@ -18,8 +18,8 @@ class TestSnapshotStorage(unittest.TestCase):
         frame.insert(ObjectSnapshot(id=10, version=1))
         frame.insert(ObjectSnapshot(id=20, version=1))
 
-        self.assertIsNotNone(frame.object(10))
-        self.assertIsNotNone(frame.object(20))
+        self.assertTrue(frame.contains(10))
+        self.assertTrue(frame.contains(20))
     
  
     def testDeriveFrame(self):

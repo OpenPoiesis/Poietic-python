@@ -53,8 +53,7 @@ class TestDatabase(unittest.TestCase):
         a = trans.create_object()
         db.commit(trans)
         
-        if not (node := db.current_frame.object(a)):
-            self.fail("Node was not created")
+        node = db.current_frame.object(a)
 
         self.assertEqual(node.state, VersionState.TRANSIENT)
     
@@ -98,8 +97,7 @@ class TestDatabase(unittest.TestCase):
 
         self.assertFalse(db.current_frame.contains(nodeID))
 
-        if not (original2 := db.frame(originalVersion)):
-            self.fail("Original frame disappeared")
+        original2 = db.frame(originalVersion)
         
         self.assertTrue(original2.contains(nodeID))
 
@@ -111,8 +109,7 @@ class TestDatabase(unittest.TestCase):
         
         originalVersion = db.current_version
 
-        if not(node := db.current_frame.object(id)):
-            self.fail("Expected object")
+        node = db.current_frame.object(id)
         
         self.assertEqual("hello", node[TestComponent].text)
 
@@ -123,19 +120,14 @@ class TestDatabase(unittest.TestCase):
         db.commit(trans2)
 
         # We need to get a fresh node snapshot from the graph
-        if not (node2 := db.current_frame.object(id)):
-            self.fail("Expected object")
-        
+        node2 = db.current_frame.object(id)
 
         self.assertEqual(node2.version, trans2.version)
         self.assertEqual("good bye", node2[TestComponent].text)
         self.assertEqual(len(db.storage.versions(node2.id)), 2)
 
-        if not (frame := db.frame(originalVersion)):
-            self.fail("Fetching of original frame failed")
-
-        if not (originalNodeAgain := frame.object(id)):
-            self.fail("Fetching of original object failed")
+        frame = db.frame(originalVersion)
+        originalNodeAgain = frame.object(id)
         
         self.assertEqual("hello", originalNodeAgain[TestComponent].text)
 
@@ -193,12 +185,9 @@ class TestDatabase(unittest.TestCase):
         db.commit(trans2)
 
         db.undo(v1)
-        if not (node := db.current_frame.object(nodeID)):
-            self.fail("Node creation failed")
-        
+        node = db.current_frame.object(nodeID)
         self.assertEqual("old", node[TestComponent].text)
 
-    
 
     def test_Redo(self):
         db = Database()

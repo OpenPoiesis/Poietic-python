@@ -3,6 +3,8 @@
 # Created by: Stefan Urbanek
 # Date: 2023-03-30
 
+# TODO: IMPORTANT: Graph .node(id) and .edge(id) should raise IdentityError
+
 from typing import Protocol, Iterable, Optional, Self, cast, TYPE_CHECKING
 from abc import abstractmethod
 from enum import Enum, auto
@@ -10,16 +12,17 @@ from enum import Enum, auto
 from ..db.object import ObjectID, ObjectSnapshot
 from ..db.object_type import ObjectType
 from ..db.component import Component
-from ..db.version import VersionID, VersionState
+from ..db.version import VersionID
 from ..db.frame import VersionFrame
-from ..db.transaction import Transaction
 from ..common import first
+from ..errors import IDError
 
 if TYPE_CHECKING:
     from .predicate import NodePredicate, EdgePredicate
 
 __all__ = [
     "Graph",
+    "MutableGraph",
     "Node",
     "Edge",
 
@@ -31,7 +34,7 @@ __all__ = [
     "UnboundGraph",
 
     # Draft
-    "MutableUnboundGraph",
+    # "MutableUnboundGraph",
 ]
 
 # Structural Object Types
@@ -93,6 +96,11 @@ class EdgeDirection(Enum):
     INCOMING = auto()
 
 
+class EdgeEndpoint(Enum):
+    ORIGIN = auto()
+    TARGET = auto()
+
+
 # Graph Protocol
 # --------------------------------------------------------------------------
 
@@ -123,11 +131,23 @@ class Graph(Protocol):
     def edgde_ids(self) -> Iterable[ObjectID]:
         return (edge.id for edge in self.edges())
 
-    def node(self, id: ObjectID) -> Optional[Node]:
-        return next((obj for obj in self.nodes() if obj.id == id), None)
+    def node(self, id: ObjectID) -> Node:
+        node = next((obj for obj in self.nodes() if obj.id == id), None)
+        
+        if (unwrapped := node):
+            return unwrapped
+        else:
+            raise IDError(id)
 
-    def edge(self, id: ObjectID) -> Optional[Edge]:
-        return next((obj for obj in self.edges() if obj.id == id), None)
+
+    def edge(self, id: ObjectID) -> Edge:
+        edge = next((obj for obj in self.edges() if obj.id == id), None)
+
+        if (unwrapped := edge):
+            return unwrapped
+        else:
+            raise IDError(id)
+
 
     def contains_node(self, id: ObjectID) -> bool:
         return any(node.id == id for node in self.nodes())
@@ -255,92 +275,21 @@ class UnboundGraph(Graph):
         return (obj for obj in self.frame.objects.values()
                 if isinstance(obj, Edge))
 
+    def node(self, id: ObjectID) -> Node:
+        node = self.frame.object(id)
 
-class MutableUnboundGraph(UnboundGraph, MutableGraph):
-    """Mutable unbound graph is a view on top of a version frame where changes
-    to the graph are applied within associated transaction.
+        if isinstance(node, Node):
+            return node
+        else:
+            raise TypeError
 
-    Any structural changes of the graph (adding node/edge, removing node/edge)
-    result in a transaction operation in a way that the structural integrity
-    of the frame is maintained.
-    """
+    def edge(self, id: ObjectID) -> Edge:
+        edge = self.frame.object(id)
 
-    transaction: Transaction
-
-    def __init__(self, transaction: Transaction):
-        """Create a new unbound-graph view on top of a version frame `frame`
-        within a transaction `transaction.
-        """
-        super().__init__(transaction.frame)
-        self.transaction = transaction
-
-    def insert_node(self, node: Node):
-        self.transaction.insert_derived(node)
-
-    def insert_edge(self, edge: Edge):
-        assert self.frame.contains(edge.origin), \
-                f"The graph does not contain origin node {edge.origin}"
-        assert self.frame.contains(edge.target), \
-                f"The graph does not contain target node {edge.target}"
-        self.transaction.insert_derived(edge)
-
-    # FIXME:[DEBT] This needs redesign.
-    # FIXME: Add tests
-    def create_node(self,
-               object_type: ObjectType,
-               components: Optional[list[Component]] = None) -> ObjectID:
-        # TODO: Prefer this convenience method
-        assert object_type.structural_type is Node
-        object = Node(id=0,
-                      version=self.transaction.version,
-                      type=object_type,
-                      components=components)
-        object.state = VersionState.TRANSIENT
-        # Insert missing but required components with default initialization
-        #
-        for comp_type in object_type.component_types:
-            if not object.components.has(comp_type):
-                object.components.set(comp_type())
-
-        # FIXME: We are unnecessarily creating two copies of the object here
-        return self.transaction.insert_derived(object)
-
-
-    # FIXME:[DEBT] This needs redesign.
-    # FIXME: This is not properly designed, as well as other create_* methods
-    # FIXME: Add tests
-    def create_edge(self,
-                object_type: ObjectType,
-                origin: ObjectID,
-                target: ObjectID,
-                components: Optional[list[Component]] = None) -> ObjectID:
-        # TODO: Prefer this convenience method
-        assert object_type.structural_type is Edge
-        assert self.transaction.frame.contains(origin)
-        assert self.transaction.frame.contains(target)
-
-        object = Edge(id=0,
-                      version=self.transaction.version,
-                      origin=origin,
-                      target=target,
-                      type=object_type,
-                      components=components)
-        object.state = VersionState.TRANSIENT
-        # Insert missing but required components with default initialization
-        #
-        for comp_type in object_type.component_types:
-            if not object.components.has(comp_type):
-                object.components.set(comp_type())
-
-        # FIXME: We are unnecessarily creating two copies of the object here
-        return self.transaction.insert_derived(object)
-
-
-    def remove_node(self, node_id: ObjectID) -> list[ObjectID]:
-        return self.transaction.remove_object_cascading(node_id)
-
-    def remove_edge(self, edge_id: ObjectID):
-        self.transaction.remove_object(edge_id)
+        if isinstance(edge, Edge):
+            return edge
+        else:
+            raise TypeError
 
 
 class BoundGraph(Graph):
@@ -367,11 +316,11 @@ class BoundGraph(Graph):
     def edges(self) -> Iterable[Edge]:
         return self._edges.values()
 
-    def node(self, id: ObjectID) -> Optional[Node]:
-        return self._nodes.get(id)
+    def node(self, id: ObjectID) -> Node:
+        return self._nodes[id]
 
-    def edge(self, id: ObjectID) -> Optional[Edge]:
-        return self._edges.get(id)
+    def edge(self, id: ObjectID) -> Edge:
+        return self._edges[id]
 
     def contains_node(self, id: ObjectID) -> bool:
         return id in self._nodes
@@ -428,9 +377,7 @@ class Neighborhood:
                 case EdgeDirection.INCOMING: node_id = edge.origin
                 case EdgeDirection.OUTGOING: node_id = edge.target
 
-            if not (node := self.graph.node(node_id)):
-                # This should not happen
-                raise RuntimeError(f"Unknown node {node_id}")
+            node = self.graph.node(node_id)
             yield node
 
     @property

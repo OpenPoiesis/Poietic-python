@@ -5,7 +5,8 @@
 
 from typing import Optional
 from ..db import ObjectID, Transaction
-from ..graph import Graph, MutableUnboundGraph, Node, Edge
+from ..graph import Graph, Node, Edge
+from ..db import MutableUnboundGraph
 from collections import defaultdict
 
 from .model import StockComponent, ExpressionComponent
@@ -202,8 +203,7 @@ class DomainView:
         result: list[Node] = list()
 
         for node_id in sorted:
-            if not (node := self.graph.node(node_id)):
-                raise RuntimeError("Something went wrong")
+            node = self.graph.node(node_id)
             result.append(node)
 
         return result
@@ -211,8 +211,7 @@ class DomainView:
 
     def flow_fills(self, flow_id: ObjectID) -> Optional[ObjectID]:
         # TODO: Can this be simplified?
-        if not (flow_node := self.graph.node(flow_id)):
-            raise RuntimeError(f"No flow node {flow_id}")
+        flow_node = self.graph.node(flow_id)
         assert flow_node.type is Metamodel.Flow
 
         hood = self.graph.select_neighbors(flow_id, Metamodel.fills)
@@ -225,8 +224,7 @@ class DomainView:
 
     def flow_drains(self, flow_id: ObjectID) -> Optional[ObjectID]:
         # TODO: Can this be simplified?
-        if not (flow_node := self.graph.node(flow_id)):
-            raise RuntimeError(f"No flow node {flow_id}")
+        flow_node = self.graph.node(flow_id)
         assert flow_node.type is Metamodel.Flow
 
         hood = self.graph.select_neighbors(flow_id, Metamodel.drains)
@@ -239,8 +237,7 @@ class DomainView:
 
     def implicit_fills(self, stock_id: ObjectID) -> list[ObjectID]:
         # TODO: Can this be simplified?
-        if not (stock_node := self.graph.node(stock_id)):
-            raise RuntimeError(f"No flow node {stock_id}")
+        stock_node = self.graph.node(stock_id)
         assert stock_node.type is Metamodel.Stock
 
         hood = self.graph.select_neighbors(stock_id, Metamodel.implicit_fills)
@@ -250,8 +247,7 @@ class DomainView:
 
     def implicit_drains(self, stock_id: ObjectID) -> list[ObjectID]:
         # TODO: Can this be simplified?
-        if not (stock_node := self.graph.node(stock_id)):
-            raise RuntimeError(f"No flow node {stock_id}")
+        stock_node = self.graph.node(stock_id)
         assert stock_node.type is Metamodel.Stock
 
         hood = self.graph.select_neighbors(stock_id, Metamodel.implicit_drains)
@@ -270,7 +266,7 @@ class Compiler:
 
     def __init__(self, transaction: Transaction):
         self.transaction = transaction
-        self.graph = MutableUnboundGraph(transaction)
+        self.graph = self.transaction.graph
         self.view = DomainView(self.graph)
 
     def compile(self) -> CompiledModel:

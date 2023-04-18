@@ -22,7 +22,7 @@ from ..graph import Edge, Node
 
 __all__ = [
     "Metamodel",
-    "LocationComponent",
+    "PositionComponent",
     "DescriptionComponent",
     "ErrorComponent",
     "FlowComponent",
@@ -52,11 +52,11 @@ class EdgeQuery:
 # Components
 # --------------------------------------------------------------------------
 
-class LocationComponent(Component):
+class PositionComponent(Component):
     """Component containing position within the design canvas."""
-    component_name: ClassVar[str] = "Location"
+    component_name: ClassVar[str] = "Position"
 
-    point: tuple[float, float]
+    position: tuple[float, float]
     """Location of the design object within its design canvas."""
 
 class DescriptionComponent(Component):

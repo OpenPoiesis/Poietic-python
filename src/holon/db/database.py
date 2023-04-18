@@ -10,7 +10,10 @@ from .frame import VersionFrame
 from .frame import SnapshotStorage
 from .version import VersionID
 from .identity import SequentialIDGenerator
+from .object import ObjectID
 from typing import Optional
+
+from .constraints import Constraint, ConstraintViolation
 
 __all__ = [
     "Database"
@@ -102,14 +105,22 @@ class Database:
     @property
     def current_frame(self) -> VersionFrame:
         """Current version frame."""
-        if not (frame := self.storage.frame(self.current_version)):
-            raise RuntimeError(f"Something went wrong. There is no frame for current version {self.current_version}")
+        frame = self.storage.frame(self.current_version)
         return frame
     
     
-    def frame(self, version: VersionID) -> Optional[VersionFrame]:
-        """Get a frame with given version identifier, if it exists."""
+    def frame(self, version: VersionID) -> VersionFrame:
+        """Get a frame with given version identifier.
+
+        A `RuntimeError` is raised when the frame does not exist.
+        """
         return self.storage.frame(version)
+
+
+    def contains_version(self, version: VersionID) -> bool:
+        """Returns `true` if the storage contains given version."""
+        return self.storage.contains(version)
+        
    
     
     def create_transaction(self) -> Transaction:
@@ -141,7 +152,18 @@ class Database:
             self.storage.remove_frame(transaction.version)
             transaction.close()
             return
-        
+       
+        # Validate integrity
+
+        missing_objects: list[ObjectID] = list()
+        for obj in transaction.derived_objects.values():
+            missing_objects += (dep for dep in obj.structural_dependencies()
+                                if not transaction.frame.contains(dep))
+
+        if missing_objects:
+            raise RuntimeError("Unhandled integrity violation: missing structural dependencies")
+
+        # Finalize
         transaction.frame.make_transient()
 
         if not transaction.frame.has_referential_integrity:
@@ -212,3 +234,19 @@ class Database:
         del self.redo_history[index:]
         redo_versions.reverse()
         self.version_history += redo_versions
+
+
+    # Constraints
+    # --------------------------------------------------------
+
+    def check_constraints(self, constraints: list[Constraint]) -> list[ConstraintViolation]:
+        violations: list[ConstraintViolation] = list()
+
+        for constraint in constraints:
+            if (violation := self.check_constraint(constraint)):
+                violations.append(violation)
+
+        return violations
+
+    def check_constraint(self, constraint: Constraint) -> Optional[ConstraintViolation]:
+        raise NotImplementedError

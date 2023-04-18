@@ -10,7 +10,7 @@ import unittest
 from holon.flows import Metamodel, ExpressionComponent
 
 from holon.db import Database, Transaction
-from holon.graph import MutableUnboundGraph
+from holon.db import MutableUnboundGraph
 
 from holon.db import Component
 from holon.db import ObjectSnapshot

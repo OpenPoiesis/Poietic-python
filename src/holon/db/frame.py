@@ -4,13 +4,14 @@
 # Date: 2023-03-30
 #
 
+# TODO: IMPORTANT: .object(id) should raise IdentityError
+
 from typing import Optional, Iterator, TYPE_CHECKING
 from .version import VersionID, VersionState
 from .object import ObjectID, ObjectSnapshot
-
+from ..errors import IDError
 
 if TYPE_CHECKING:
-
     from ..graph import UnboundGraph
 
 __all__ = [
@@ -167,12 +168,18 @@ class VersionFrame:
         
         self.objects[snapshot.id] = snapshot
     
-    def object(self, id: ObjectID) -> Optional[ObjectSnapshot]:
-        """Returns an object with given identity if the frame contains it.
-        Otherwise returns `None`."""
+    def object(self, id: ObjectID) -> ObjectSnapshot:
+        """
+        Returns an object with given identity if the frame contains it.
+        
+        :raises IDError: If there is no object with given ID.
+        """
 
         # TODO: Make mutable/immutable version of this method.
-        return self.objects.get(id)
+        try:
+            return self.objects[id]
+        except KeyError:
+            raise IDError(id)
     
     def __str__(self) -> str:
         return f"VersionFrame({self.version}, state: {self.state}"
@@ -214,6 +221,7 @@ class VersionFrame:
 
 class SnapshotStorage:
     """Storage of version frames."""
+    # TODO: Merge with database?
 
     frames: dict[VersionID, VersionFrame]
     
@@ -221,13 +229,21 @@ class SnapshotStorage:
         """Create a new frame storage."""
         self.frames = dict()
     
-    def frame(self, version: VersionID) -> Optional[VersionFrame]:
+    def frame(self, version: VersionID) -> VersionFrame:
         """Get a frame by version.
 
         :param VersionID version: Version of the frame to be fetched.
-        :return: A frame if it exists in the storage.
+        :return: A frame.
+        :raises RuntimeError: When frame does not exist.
         """
-        return self.frames[version]
+        try:
+            return self.frames[version]
+        except KeyError:
+            raise RuntimeError
+
+    def contains(self, version: VersionID) -> bool:
+        """Returns `true` if the storage contains given version."""
+        return version in self.frames
 
     def versions(self, id: ObjectID) -> list[VersionID]:
         """ Get list of all versions of a given object.
