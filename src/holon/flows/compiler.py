@@ -297,6 +297,36 @@ class Compiler:
 
         # Finalize and collect issues
 
+        # TODO: Test this
+        compiled.stocks = list(node.id for node in sorted_nodes
+                               if node.type is Metamodel.Stock)
+        compiled.flows = list(node.id for node in sorted_nodes
+                               if node.type is Metamodel.Flow)
+        compiled.auxiliaries = list(node.id for node in sorted_nodes
+                               if node.type is Metamodel.Auxiliary)
+
+        # TODO: Test this
+        for node in sorted_nodes:
+            if node.type is not Metamodel.Stock:
+                continue
+            compiled.stock_components[node.id] = node[StockComponent]
+
+        # TODO: Test this
+        for edge in self.graph.select_edges(Metamodel.drains_edge):
+            stock = edge.origin
+            flow = edge.target
+            if stock not in compiled.outflows:
+                compiled.outflows[stock] = list()
+            compiled.outflows[stock].append(flow)
+
+        # TODO: Test this
+        for edge in self.graph.select_edges(Metamodel.fills_edge):
+            flow = edge.origin
+            stock = edge.target
+            if stock not in compiled.inflows:
+                compiled.inflows[stock] = list()
+            compiled.inflows[stock].append(flow)
+
         return compiled
     #
     # def compile_expression(self, node: ObjectID, names: dict[str, ObjectID]):

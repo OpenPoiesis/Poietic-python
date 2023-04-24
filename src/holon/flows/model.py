@@ -13,12 +13,17 @@ from ..graph.predicate import \
         HasComponentPredicate, \
         IsTypePredicate
 
+from ..db.constraints import \
+        UniqueNeighborRequirement
+
 from ..graph import EdgeDirection
 
 from ..graph import NeighborhoodSelector
 
 from ..db import Component, ObjectType, ObjectSnapshot
 from ..graph import Edge, Node
+from ..attributes import AttributeReference
+from ..db.constraints import UniqueAttribute, NodeConstraint
 
 __all__ = [
     "Metamodel",
@@ -106,6 +111,10 @@ class StockComponent(Component):
     stocks - that is when an outflow of a stock results in an inflow of the same stock
     through a chain of of other flows.
     """
+    def __init__(self, allows_negative: bool = False,
+                 delayed_inflow: bool = False):
+        self.allows_negative = allows_negative
+        self.delayed_inflow = delayed_inflow
 
 class ExpressionComponent(Component):
     """Core component containing the arithemtic expression for a node."""
@@ -149,6 +158,9 @@ class Metamodel:
         We are using a Python class and class variables for simplicity. No
         instances of this class should be created.
 
+        Alternatively we might use python module, but I prefer a feature that
+        can be easily ported to another language.
+
     .. note:
         In the future there is a plan for validation of the model based on this
         metamodel description.
@@ -170,6 +182,8 @@ class Metamodel:
                 # ErrorComponent,
                 StockComponent,
             ],
+
+
             )
     """Objec type for Stock nodes."""
 
@@ -251,11 +265,54 @@ class Metamodel:
 
     """
 
-    # Prototypes
+    # Constraints
     # ----------------------------------------------------------------------
 
-    prototypes: list[ObjectSnapshot] = [
-        
+
+    constraints = [ 
+    NodeConstraint(
+        name= "single_flow_fill",
+        description= """
+                     All flows must have only one outgoing 'flow' edge to a
+                     stock. This is a model integrity constraint.
+                     """,
+        predicate= IsTypePredicate(Flow),
+        requirement= UniqueNeighborRequirement(IsTypePredicate(Fills))
+    ),
+
+    NodeConstraint(
+        name= "single_flow_drain",
+        description= """
+                     All flows must have only one incoming "flow" edge
+                     from a stock. This is a model integrity constraint.
+                     """,
+        predicate= IsTypePredicate(Flow),
+        requirement= UniqueNeighborRequirement(IsTypePredicate(Drains),
+                                               direction=EdgeDirection.INCOMING)
+    ),
+
+    # NodeConstraint(
+    #     name= "drain_and_fill_is_different",
+    #     description= """
+    #                  Drains edge of a flow node must be different from the
+    #                  fills edge.
+    #                  """,
+    #     predicate= SameDrainFill(),
+    #     requirement= RejectAll()
+    # ),
+
+    NodeConstraint(
+        name= "unique_node_name",
+        description= """
+                     Expression nodes (flows, stocks and auxiliaries)
+                     should have a unique name.
+                     """,
+
+        predicate= IsTypePredicate([Flow, Stock, Auxiliary]),
+        requirement= UniqueAttribute(
+                        AttributeReference(ExpressionComponent, "name")
+                        )
+    ),
     ]
 
     # Queries
@@ -295,3 +352,6 @@ class Metamodel:
             direction=EdgeDirection.INCOMING,
         )
 
+
+    def __init__(self):
+        raise RuntimeError("Metamodel should not be instantiated")

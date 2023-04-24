@@ -12,6 +12,7 @@ from .component import Component
 
 if TYPE_CHECKING:
     from .object import ObjectSnapshot
+    from ..graph import Edge
 
 
 __all__ = [
@@ -58,3 +59,14 @@ class ObjectType:
         self.component_types = component_types or list()
         self.structural_type = structural_type
 
+
+class EdgeType(ObjectType):
+    structural_type = "Edge"
+    unique_origin: bool
+    unique_target: bool
+
+    def __init__(self,
+                 name: str,
+                 component_types: Optional[list[Type[Component]]] = None):
+
+        super().__init__(name=name, component_types=component_types)

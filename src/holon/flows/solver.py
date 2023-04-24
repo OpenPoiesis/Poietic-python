@@ -4,6 +4,7 @@
 #
 # Date: 2023-04-07
 
+from typing import Optional
 from abc import abstractmethod
 
 from ..db import ObjectID
@@ -29,8 +30,11 @@ class StateVector(Container):
     values: dict[ObjectID, float]
     """Vector values. Keys are node references and values are computed values."""
 
-    def __init__(self):
-        self.values = dict()
+    def __init__(self, values: Optional[dict[ObjectID, float]]=None):
+        if (unwrapped := values):
+            self.values = dict(unwrapped)
+        else:
+            self.values = dict()
 
     def __setitem__(self, key: ObjectID, value: float):
         self.values[key] = value
@@ -45,7 +49,7 @@ class StateVector(Container):
         new = StateVector()
 
         for (key, value) in self.values.items():
-            new[key] = value + other.values[key]
+            new[key] = value + other.values.get(key, 0.0)
 
         return new
 
@@ -56,6 +60,9 @@ class StateVector(Container):
             new[key] = value * other
 
         return new
+
+    def __str__(self) -> str:
+        return str(self.values)
 
 
 class Solver:

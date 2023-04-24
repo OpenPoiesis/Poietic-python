@@ -57,11 +57,60 @@ class HasComponentPredicate(ObjectPredicate):
         return object.components.has(self.component_type)
     
 class IsTypePredicate(ObjectPredicate):
-    object_type: ObjectType
+    object_types: list[ObjectType]
 
-    def __init__(self, object_type: ObjectType):
-        self.object_type = object_type
+    def __init__(self, object_type: ObjectType | list[ObjectType]):
+        if isinstance(object_type, ObjectType):
+            self.object_types = [object_type]
+        else:
+            self.object_type = object_type
 
     def match(self, graph: Graph, object: ObjectSnapshot) -> bool: # pyright: ignore
-        return object.type is self.object_type
+        return all(object.type is t for t in self.object_types)
 
+
+# class EdgeEndpointPredicate(EdgePredicate):
+#     """Constraint requirement for edge and its endpoints."""
+#
+#     # TODO: Change to Union[None, ObjectType, list[ObjectType]]
+#     edge_type: Optional[ObjectType]
+#     """Type that the edge is required to be."""
+#     origin_type: Optional[ObjectType]
+#     """Type that the origin is required to be."""
+#     target_type: Optional[ObjectType]
+#     """Type that the target is required to be."""
+#
+#     def __init__(self,
+#                   edge_type: Optional[ObjectType]=None,
+#                   origin_type: Optional[ObjectType]=None,
+#                   target_type: Optional[ObjectType]=None):
+#         """Create a new edge endpoint type requirement."""
+#         if edge_type is not None:
+#             assert edge_type.structural_type is Edge
+#         if origin_type is not None:
+#             assert origin_type.structural_type is Node
+#         if target_type is not None:
+#             assert target_type.structural_type is Node
+#
+#         self.edge_type = edge_type
+#         self.origin_type = origin_type
+#         self.target_type = target_type
+#
+#     def match_edge(self, graph: Graph, edge: Edge) -> bool:
+#         assert isinstance(edge, Edge), \
+#                 f"Expected edge, got: {edge}"
+#
+#         edge = cast(Edge, edge)
+#
+#         origin: Node = graph.node(edge.origin)
+#         target: Node = graph.node(edge.target)
+#         if (origin_type := self.origin_type):
+#             if origin.type is not origin_type:
+#                 return False
+#
+#         if (target_type := self.target_type):
+#             if target.type is not target_type:
+#                 violators.append(edge)
+#                 return False
+#
+#         if (edge_type := self.edge_type):
