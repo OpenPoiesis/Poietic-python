@@ -199,6 +199,7 @@ class Transaction:
 
     def _derived_object(self, id: ObjectID) -> ObjectSnapshot:
         assert self.is_open, "Trying to close already closed transaction"
+        # TODO: Now we have this information in the Frame as "owned" flag
 
         object: ObjectSnapshot
 

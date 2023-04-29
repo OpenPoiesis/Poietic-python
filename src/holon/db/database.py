@@ -20,6 +20,9 @@ __all__ = [
 ]
 
 class Database:
+    """Database represents a versioned object memory.
+    """
+    # TODO: Rename to Memory, VersionedMemory, VersionedObjectMemory
     # TODO: This needs to be wrapped in a lock
     object_id_generator: SequentialIDGenerator
     """

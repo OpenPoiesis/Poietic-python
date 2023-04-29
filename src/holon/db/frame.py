@@ -19,6 +19,17 @@ __all__ = [
     "SnapshotStorage",
 ]
 
+from collections import namedtuple
+
+
+FrameSnapshotReference = namedtuple('FrameSnapshotReference', ['snapshot', 'owned'])
+"""Annotated reference to a snapshot object from a frame. The `owned` property
+is a flag that denotes whether the version frame owns the snapshot, that is,
+whether changes can be made to the snapshot without need to derive it.
+
+Changes to an unowned snapshot require that the snapshot is derived first.
+"""
+
 class VersionFrame:
     """
     Version frame represents a version snapshot of the design – snapshot of
@@ -36,7 +47,7 @@ class VersionFrame:
     """
     
     # check for mutability
-    objects: dict[ObjectID, ObjectSnapshot]
+    _snapshots: dict[ObjectID, FrameSnapshotReference]
     """
     Versions of objects in the plane.
     
@@ -47,7 +58,7 @@ class VersionFrame:
    
     
     def __init__(self, version: VersionID,
-                 objects: Optional[dict[ObjectID, ObjectSnapshot]] = None):
+                 objects: Optional[Iterator[ObjectSnapshot]] = None):
         """Create a new version frame for a version `version`.
 
         :param VersionID version: Version ID of the new frame. It must be unique within the database.
@@ -55,14 +66,23 @@ class VersionFrame:
         """
         self.version = version
         self.state = VersionState.UNSTABLE
+        self._snapshots = dict()
+
         if objects is not None:
-            self.objects = dict(objects)
-        else:
-            self.objects = dict()
+            for obj in objects:
+                self._snapshots[obj.id] = FrameSnapshotReference(snapshot=obj,
+                                                              owned=False)
+    
+    @property
+    def snapshots(self) -> Iterator[ObjectSnapshot]:
+        """Get a sequence of all snapshots within the frame."""
+        for (snapshot, _) in self._snapshots.values():
+            yield snapshot
+
     
     def contains(self, id: ObjectID) -> bool:
         """:return: `True` if the frame constains objects with object identity `id`."""
-        return id in self.objects
+        return id in self._snapshots
 
 
     def structural_dependants(self, id: ObjectID) -> Iterator[ObjectID]:
@@ -75,9 +95,9 @@ class VersionFrame:
 
         :return: Objects that structurally depend on the object with `id`.
         """
-        for object in self.objects.values():
-            if id in object.structural_dependencies():
-                yield object.id
+        for (snapshot, _) in self._snapshots.values():
+            if id in snapshot.structural_dependencies():
+                yield snapshot.id
 
     def has_referential_integrity(self) -> bool:
         """Returns `true` if the frame maintains referential integrity of
@@ -93,9 +113,10 @@ class VersionFrame:
         For example, if the frame is representing a graph and endpoints of the
         edges of the graph refer to objects that do not exist in the frame."""
 
-        for (oid, object) in self.objects.items():
-            if any(id not in self.objects
-                   for id in object.structural_dependencies()):
+        for (oid, ref) in self._snapshots.items():
+            snapshot = ref.snapshot
+            if any(id not in self._snapshots
+                   for id in snapshot.structural_dependencies()):
                 yield oid
                     
 
@@ -113,33 +134,35 @@ class VersionFrame:
 
         """
         assert self.state.is_mutable
-        assert id in self.objects
+        assert id in self._snapshots
 
-        original = self.objects[id]
-        assert original.version != self.version, \
-                     "Trying to derive already derived object"
+        (original, owned) = self._snapshots[id]
+        assert not owned, \
+                 "Trying to derive already derived object"
 
         derived = original.derive(version=self.version)
-        self.objects[id] = derived
+        self._snapshots[id] = FrameSnapshotReference(snapshot=derived,
+                                                  owned=True)
         return derived
     
     def remove_cascading(self, id: ObjectID) -> list[ObjectID]:
         """Remove object from the frame including all it dependants."""
         assert self.state.is_mutable
-        assert id in self.objects, \
+        assert id in self._snapshots, \
                      f"Trying to remove an object ({id}) that is not in the frame {self.version}"
 
         # Preliminary implementation, works for edge-like objects. Good for
         # now.
         removed: list[ObjectID] = list()
 
-        for (dep_id, dep) in self.objects.items():
+        for (dep_id, ref) in self._snapshots.items():
+            dep = ref.snapshot
             if id not in dep.structural_dependencies():
                 continue
-            del self.objects[dep_id]
+            del self._snapshots[dep_id]
             removed.append(dep_id)
 
-        del self.objects[id]
+        del self._snapshots[id]
 
         return removed
 
@@ -147,12 +170,14 @@ class VersionFrame:
         """Remove an object with given identity from the frame."""
         # TODO: Rename to remove_unsafe and recommend remove_cascading()
         assert self.state.is_mutable
-        assert id in self.objects, \
+        assert id in self._snapshots, \
                      f"Trying to remove an object ({id}) that is not in the frame {self.version}"
-        del self.objects[id]
+        del self._snapshots[id]
     
     def insert(self, snapshot: ObjectSnapshot):
         """Insert a snapshot to the frame.
+
+        Inserted snapshot will not be owned by the frame unless derived.
 
         Preconditions:
 
@@ -164,9 +189,11 @@ class VersionFrame:
         """
         assert (self.state.is_mutable)
         assert (self.version == snapshot.version)
-        assert (snapshot.id not in self.objects)
+        assert (snapshot.id not in self._snapshots)
         
-        self.objects[snapshot.id] = snapshot
+        ref = FrameSnapshotReference(snapshot=snapshot, owned=False)
+
+        self._snapshots[snapshot.id] = ref
     
     def object(self, id: ObjectID) -> ObjectSnapshot:
         """
@@ -177,24 +204,25 @@ class VersionFrame:
 
         # TODO: Make mutable/immutable version of this method.
         try:
-            return self.objects[id]
+            return self._snapshots[id].snapshot
         except KeyError:
             raise IDError(id)
     
     def __str__(self) -> str:
         return f"VersionFrame({self.version}, state: {self.state}"
-    
+
     def derive(self, version: VersionID) -> "VersionFrame":
         """Derive new version of the frame."""
         assert (self.state.can_derive)
-        return VersionFrame(version=version, objects=self.objects)
+        return VersionFrame(version=version, objects=self.snapshots)
     
     def make_transient(self):
         """Make the frame transient.
 
         All objects in the frame that are unstable will be made transient.
         """
-        for obj in self.objects.values():
+        for ref in self._snapshots.values():
+            obj = ref.snapshot
             if obj.version == self.version and obj.state == VersionState.UNSTABLE:
                 obj.make_transient()
 
@@ -205,7 +233,8 @@ class VersionFrame:
 
         All objects in the frame that are transient will be frozen.
         """
-        for obj in self.objects.values():
+        for ref in self._snapshots.values():
+            obj = ref.snapshot
             if obj.version == self.version and obj.state != VersionState.FROZEN:
                 obj.freeze()
         self.state = VersionState.FROZEN
@@ -222,6 +251,7 @@ class VersionFrame:
 class SnapshotStorage:
     """Storage of version frames."""
     # TODO: Merge with database?
+    # TODO: Rename to FrameStorage
 
     frames: dict[VersionID, VersionFrame]
     

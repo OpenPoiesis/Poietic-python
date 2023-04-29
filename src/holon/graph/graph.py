@@ -269,10 +269,10 @@ class UnboundGraph(Graph):
         self.frame = frame
 
     def nodes(self) -> Iterable[Node]:
-        return (obj for obj in self.frame.objects.values()
+        return (obj for obj in self.frame.snapshots
                 if isinstance(obj, Node))
     def edges(self) -> Iterable[Edge]:
-        return (obj for obj in self.frame.objects.values()
+        return (obj for obj in self.frame.snapshots
                 if isinstance(obj, Edge))
 
     def node(self, id: ObjectID) -> Node:
@@ -300,7 +300,7 @@ class BoundGraph(Graph):
     def __init__(self, frame: VersionFrame):
         assert not frame.state.is_mutable
 
-        for obj in frame.objects.values():
+        for obj in frame.snapshots:
             if isinstance(obj, Node):
                 node = cast(Node, obj)
                 self._nodes[node.id] = node
