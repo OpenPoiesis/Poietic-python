@@ -17,6 +17,7 @@ from .constraints import Constraint, ConstraintViolation
 
 __all__ = [
     "ObjectMemory"
+]
 
 
 class ObjectMemory:
