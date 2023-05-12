@@ -6,16 +6,15 @@ from holon.db.constraints import \
         UniqueAttribute, \
         EdgeEndpointType
 
-from holon.db import Database, Transaction
-from holon.graph import Graph
+from holon.db import ObjectMemory
 
 from .common import NodeTypeA, NodeTypeB, EdgeTypeA
 
 class ConstraintsTestCase(unittest.TestCase):
     def setUp(self):
-        self.db = Database()
-        self.transaction = self.db.create_transaction()
-        self.graph = self.transaction.graph
+        self.db = ObjectMemory()
+        self.transaction = self.db.derive_frame()
+        self.graph = self.transaction.mutable_graph
 
     def test_endpoint_type_requirement(self):
         a = self.graph.create_node(NodeTypeA)

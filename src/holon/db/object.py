@@ -7,7 +7,7 @@
 from typing import TypeAlias, Optional, TypeVar, Type, Self
 
 from .identity import ID
-from .version import VersionID, VersionState
+from .version import VersionState
 
 from .component import Component, ComponentSet
 from .object_type import ObjectType
@@ -74,11 +74,11 @@ class ObjectSnapshot:
 
     # TODO: Make this private and expose public read-only property
     id: ObjectID
-    """Object identity that is guaranteed to be unique within the object
-    memory."""
+    """Object identity that is guaranteed to be unique within an object
+    frame."""
 
-    version: VersionID
-    """Object version identifier – unique within object identity."""
+    snapshot_id: SnapshotID
+    """Unique identifier of the object snapshot within the database."""
 
     state: VersionState
     """Object state. See ``VersionState`` for more information."""
@@ -96,7 +96,7 @@ class ObjectSnapshot:
 
     def __init__(self,
                  id: ObjectID,
-                 version: VersionID,
+                 snapshot_id: SnapshotID,
                  type: Optional[ObjectType]=None,
                  components: Optional[list[Component]] = None):
         """
@@ -104,15 +104,14 @@ class ObjectSnapshot:
         The combination of object identity and version must be unique within the database.
         """
         self.id = id
-        self.version = version
-        self.snapshot_id = 0
+        self.snapshot_id = snapshot_id
         self.state = VersionState.UNSTABLE
         self.dimension = DEFAULT_DIMENSION
         self.components = ComponentSet(components)
         self.type = type
 
 
-    def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
+    def derive(self, snapshot_id: SnapshotID, id: Optional[ObjectID] = None) -> Self:
         """
         Derive a new object from existing object and assign it a new version
         identifier.
@@ -145,7 +144,7 @@ class ObjectSnapshot:
         new_id = id or self.id
 
         obj = self.__class__(id = new_id,
-                             version = version,
+                             snapshot_id = snapshot_id,
                              components = self.components.as_list() )
         obj.dimension = self.dimension
         obj.state = VersionState.UNSTABLE
@@ -157,7 +156,8 @@ class ObjectSnapshot:
         self.state = VersionState.TRANSIENT
 
     def freeze(self):
-        assert self.state == VersionState.TRANSIENT
+        # We can freeze an object in any state. Freezing already frozen object
+        # does nothing.
         self.state = VersionState.FROZEN
 
     def __getitem__(self, key: Type[C]) -> C:

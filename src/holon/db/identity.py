@@ -25,7 +25,7 @@ class SequentialIDGenerator:
 
     def __init__(self):
         """Create a new sequential ID generator."""
-        self._current = 0
+        self._current = 1
         self._used = set()
 
     def next(self) -> int:

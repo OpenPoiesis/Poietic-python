@@ -9,11 +9,10 @@ from typing import Protocol, Iterable, Optional, Self, cast, TYPE_CHECKING
 from abc import abstractmethod
 from enum import Enum, auto
 
-from ..db.object import ObjectID, ObjectSnapshot
+from ..db.object import ObjectID, SnapshotID, ObjectSnapshot
 from ..db.object_type import ObjectType
 from ..db.component import Component
-from ..db.version import VersionID
-from ..db.frame import VersionFrame
+from ..db.frame import FrameBase
 from ..common import first
 from ..errors import IDError
 
@@ -31,10 +30,6 @@ __all__ = [
     "Neighborhood",
 
     "BoundGraph",
-    "UnboundGraph",
-
-    # Draft
-    # "MutableUnboundGraph",
 ]
 
 # Structural Object Types
@@ -55,7 +50,7 @@ class Edge(ObjectSnapshot):
 
     def __init__(self,
                  id: ObjectID,
-                 version: VersionID,
+                 snapshot_id: SnapshotID,
                  origin: ObjectID,
                  target: ObjectID,
                  type: Optional[ObjectType]=None,
@@ -65,18 +60,17 @@ class Edge(ObjectSnapshot):
         The combination of object identity and version must be unique within the database.
         """
         super().__init__(id=id,
-                         version=version,
+                         snapshot_id=snapshot_id,
                          type=type,
                          components=components)
         self.origin = origin
         self.target = target
 
 
-    def derive(self, version: VersionID, id: Optional[ObjectID] = None) -> Self:
+    def derive(self, snapshot_id: SnapshotID, id: Optional[ObjectID] = None) -> Self:
         """Derive a new edge, keeping the same origin and target."""
-        # FIXME: This is a workaround before I figure out how to have better structual components
         derived = self.__class__(id=id or self.id,
-                                 version=version,
+                                 snapshot_id=snapshot_id,
                                  origin=self.origin,
                                  target=self.target,
                                  type=self.type,
@@ -260,46 +254,12 @@ class MutableGraph(Graph, Protocol):
         ...
 
 
-
-class UnboundGraph(Graph):
-    """Slow graph on top of a mutable frame."""
-    frame: VersionFrame
-
-    def __init__(self, frame: VersionFrame):
-        self.frame = frame
-
-    def nodes(self) -> Iterable[Node]:
-        return (obj for obj in self.frame.snapshots
-                if isinstance(obj, Node))
-    def edges(self) -> Iterable[Edge]:
-        return (obj for obj in self.frame.snapshots
-                if isinstance(obj, Edge))
-
-    def node(self, id: ObjectID) -> Node:
-        node = self.frame.object(id)
-
-        if isinstance(node, Node):
-            return node
-        else:
-            raise TypeError
-
-    def edge(self, id: ObjectID) -> Edge:
-        edge = self.frame.object(id)
-
-        if isinstance(edge, Edge):
-            return edge
-        else:
-            raise TypeError
-
-
 class BoundGraph(Graph):
     """Fast, immutable graph derived from an immutable frame."""
     _nodes: dict[ObjectID, Node]
     _edges: dict[ObjectID, Edge]
 
-    def __init__(self, frame: VersionFrame):
-        assert not frame.state.is_mutable
-
+    def __init__(self, frame: FrameBase):
         for obj in frame.snapshots:
             if isinstance(obj, Node):
                 node = cast(Node, obj)

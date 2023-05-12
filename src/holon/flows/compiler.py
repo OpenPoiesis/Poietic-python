@@ -4,7 +4,7 @@
 # Date: 2023-04-01
 
 from typing import Optional
-from ..db import ObjectID, Transaction
+from ..db import ObjectID, MutableFrame
 from ..graph import Graph, Node, Edge
 from ..db import MutableUnboundGraph
 from collections import defaultdict
@@ -261,10 +261,10 @@ class Compiler:
     compiled model."""
 
     graph: MutableUnboundGraph
-    transaction: Transaction
+    transaction: MutableFrame
     view: DomainView
 
-    def __init__(self, transaction: Transaction):
+    def __init__(self, transaction: MutableFrame):
         self.transaction = transaction
         self.graph = self.transaction.graph
         self.view = DomainView(self.graph)

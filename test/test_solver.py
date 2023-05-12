@@ -1,6 +1,6 @@
 import unittest
 
-from holon.db import Database, Transaction
+from holon.db import ObjectMemory, MutableFrame
 from holon.db import MutableUnboundGraph
 from holon.flows import Compiler
 from holon.flows.solver import Solver
@@ -8,15 +8,15 @@ from holon.flows import Metamodel
 from holon.flows import ExpressionComponent
 
 class SolverTestCase(unittest.TestCase):
-    db: Database
-    trans: Transaction
+    db: ObjectMemory
+    trans: MutableFrame
     graph: MutableUnboundGraph
     compiler: Compiler
 
     def setUp(self):
-        self.db = Database()
-        self.trans = self.db.create_transaction()
-        self.graph = self.trans.graph
+        self.db = ObjectMemory()
+        self.trans = self.db.derive_frame()
+        self.graph = self.trans.mutable_graph
         self.compiler = Compiler(self.trans)
 
     def testInitializeStocks(self):

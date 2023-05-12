@@ -9,28 +9,31 @@ import unittest
 
 from holon.flows import Metamodel, ExpressionComponent
 
-from holon.db import Database, Transaction
+from holon.db import ObjectMemory, MutableFrame
 from holon.db import MutableUnboundGraph
 
 from holon.db import Component
 from holon.db import ObjectSnapshot
-from holon.db import VersionFrame
+from holon.db import MutableFrame
 from holon.graph import HasComponentPredicate
-from holon.graph import UnboundGraph
+
 
 class TestComponent(Component):
     text: str
     def __init__(self, text: str):
         self.text = text
 
+
 class TestPredicate(unittest.TestCase):
     def test_has_component(self):
-        frame = VersionFrame(0)
-        graph = UnboundGraph(frame)
+        frame = MutableFrame(ObjectMemory(), 0)
+        graph = frame.mutable_graph
         
-        obj_yes = ObjectSnapshot(id=1, version=0,
+        obj_yes = ObjectSnapshot(id=1,
+                                 snapshot_id=1,
                                  components=[TestComponent(text="test")])
-        obj_no = ObjectSnapshot(id=2, version=0)
+        obj_no = ObjectSnapshot(id=2,
+                                snapshot_id=2)
 
         frame.insert(obj_yes)
         frame.insert(obj_no)
@@ -40,14 +43,15 @@ class TestPredicate(unittest.TestCase):
         self.assertTrue(pred.match(graph, obj_yes))
         self.assertFalse(pred.match(graph, obj_no))
 
+
 class TestGraphQuery(unittest.TestCase):
-    db: Database
-    trans: Transaction
+    db: ObjectMemory
+    trans: MutableFrame
     graph: MutableUnboundGraph
 
     def setUp(self):
-        self.db = Database()
-        self.trans = self.db.create_transaction()
+        self.db = ObjectMemory()
+        self.trans = self.db.derive_frame()
         self.graph = MutableUnboundGraph(self.trans)
 
     def test_selectNodes(self):

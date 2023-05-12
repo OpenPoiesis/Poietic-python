@@ -1,6 +1,6 @@
 import unittest
 
-from holon.db import Database, Transaction, ObjectID
+from holon.db import ObjectMemory, MutableFrame, ObjectID
 from holon.db import MutableUnboundGraph
 
 from holon.flows import Compiler, CompilerError, NodeIssueType
@@ -9,13 +9,13 @@ from holon.flows import Metamodel
 from holon.flows import ExpressionComponent
 
 class TestDomainView(unittest.TestCase):
-    db: Database
-    trans: Transaction
+    db: ObjectMemory
+    trans: MutableFrame
     graph: MutableUnboundGraph
 
     def setUp(self):
-        self.db = Database()
-        self.trans = self.db.create_transaction()
+        self.db = ObjectMemory()
+        self.trans = self.db.derive_frame()
         self.graph = MutableUnboundGraph(self.trans)
 
     def test_Empty(self):
@@ -25,7 +25,7 @@ class TestDomainView(unittest.TestCase):
     def test_CompileSome(self):
         # a -> b -> c
         
-        trans = self.db.create_transaction()
+        trans = self.db.derive_frame()
         graph = MutableUnboundGraph(trans)
 
         c = graph.create_node(Metamodel.Auxiliary,
