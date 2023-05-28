@@ -223,8 +223,8 @@ class JSONStore(PersistentStore):
         # NOTE: The match below is a remnant from when `name` was `type_name`
         # TODO: Good for now. This emulates existence of a DB schema.
         match name:
-            case "snapshot": cont_name = "snapshots"
-            case "frame": cont_name = "frames"
+            case "snapshots": cont_name = "snapshots"
+            case "frames": cont_name = "frames"
             case _: raise Exception(f"Unknown container type: {name}")
 
         cont: list[dict[str, Any]]
@@ -253,7 +253,7 @@ class JSONStore(PersistentStore):
             if components:
                 json_record["components"] = components
 
-            collection.append(record.as_dict())
+            collection.append(json_record)
 
 
     def read_info_record(self) -> PersistentRecord:
