@@ -1,5 +1,5 @@
 from holon.db import ObjectMemory
-from holon.db import ObjectSnapshot, Dimension
+from holon.db import ObjectSnapshot
 
 import unittest
 
@@ -51,36 +51,3 @@ class TestObjectMemory(unittest.TestCase):
         self.assertTrue(frame2.contains(20))
         self.assertTrue(frame2.contains(30))
     
-    
-    def test_mutation(self):
-        # NOTE: This tests required API - that the frame.object() returns
-        #       a mutable reference, not a copy. It will fail if the
-        #       ObjectSnapshot is changed to a struct or if the
-        #       frame.object() returns a copy.
-
-        # This test is to maintain the original intent of the memory.object()
-        # signature.
-        
-        
-        memory = ObjectMemory()
-        frame = memory.create_frame(2)
-
-        frame.insert(ObjectSnapshot(id=10, snapshot_id=1))
-        
-        object = frame.object(10)
-        if object is None:
-            self.fail("Object expected")
-        
-        dim = Dimension(name="test")
-        object.dimension = dim
-
-        object2 = frame.object(10)
-        if object2 is None:
-            self.fail("Object expected")
-        
-        self.assertIs(dim, object2.dimension)
-
-    
-    
-
-

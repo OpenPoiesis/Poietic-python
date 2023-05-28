@@ -6,40 +6,45 @@
 
 # FIXME: Rename the file/module to `memory`
 
-from .frame import StableFrame
-from .mutable_frame import MutableFrame
-from .version import VersionID, VersionState
-from .identity import SequentialIDGenerator
-from .object import ObjectID
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Type, cast
 
+from ..persistence.store import \
+        PersistentStore, \
+        PersistentRecord, \
+        ExtendedPersistentRecord
+
+from ..metamodel import MetamodelBase
+from ..graph import Node, Edge
+
+from .frame import StableFrame
+from .component import PersistableComponent
+
+from .mutable_frame import MutableFrame
+from .identity import SequentialIDGenerator, VersionID, ObjectID, SnapshotID
+from .object import ObjectSnapshot
 from .constraints import Constraint, ConstraintViolation
+
 
 __all__ = [
     "ObjectMemory"
 ]
 
 
+# TODO: Validate whether objects have required components according to
+# the metamodel
 class ObjectMemory:
     """Database represents a versioned object memory.
     """
+    # TODO: Rename to "Design" or "DesignProject"
     # TODO: This is NOT thread-safe, however it should be.
     # TODO: All access to *_id_generator should be atomic
     # TODO: [IMPORTANT] Separate all history related functionality.
 
-    object_id_generator: SequentialIDGenerator
+    identity_generator: SequentialIDGenerator
     """
-    Sequential generator for object identifiers - unique for each object
-    during the lifetime of the database.
+    Generator for identifiers of persistent objects: objects, frames,
+    snapshots.
     """
-    
-    frame_id_generator: SequentialIDGenerator
-    """
-    Sequential generator for version identifiers - unique for each
-    transaction during the lifetime of the database.
-
-    """ 
-    snapshot_id_generator: SequentialIDGenerator
     
     """
     List of versions that are represented by version planes in the database.
@@ -60,6 +65,9 @@ class ObjectMemory:
 
     current_version_index: Optional[int]
 
+
+    metamodel: Optional[Type[MetamodelBase]]
+
     
     @property
     def all_versions(self) -> list[VersionID]:
@@ -70,25 +78,154 @@ class ObjectMemory:
         """
         return list(self._stable_frames.keys())
     
-    def __init__(self):
+    def __init__(self,
+                 metamodel: Optional[Type[MetamodelBase]]=None,
+                 store: Optional[PersistentStore]=None):
         """
-        Create a new empty database.
-        """
-        self.version_id_generator = SequentialIDGenerator()
-        self.object_id_generator = SequentialIDGenerator()
-        self.snapshot_id_generator = SequentialIDGenerator()
+        Create a new database.
 
+        `store` is a persistent store from which the design will be loaded. If
+        not provided an empty design will be created.
+        """
         self._stable_frames = dict()
         self._mutable_frames = dict()
         self.version_history = list()
         self.current_version_index = None
+        self.identity_generator = SequentialIDGenerator()
+        self.metamodel = metamodel
 
-        # Create a first frame.
-        # TODO: This is a history-related functionality that needs to be
-        # separated.
-        frame = self.create_frame()
-        self.accept(frame)
 
+        if store is not None:
+            if metamodel is not None:
+                self._initialize_from_store(metamodel=metamodel,
+                                            store=store)
+            else:
+                raise RuntimeError("Store provided without metamodel")
+        else:
+            # Create a first frame.
+            # TODO: This is a history-related functionality that needs to be
+            # separated.
+            frame = self.create_frame()
+            self.accept(frame)
+
+    def _initialize_from_store(self,
+                               metamodel: Type[MetamodelBase],
+                               store: PersistentStore):
+        # NOTE: Keep this method in-sync with save()
+        # TODO: Consider passing richer context thhan just metamodel, something
+        # that might include the version as well so the functions down-stream
+        # would be able to adapt, if possible.
+
+        info: PersistentRecord = store.read_info_record()
+
+        version = info["version"]
+
+        # TODO: This is hardcoded for now
+        if version != "0.0.1":
+            raise Exception(f"Unknown dump format version: {version}")
+
+        snapshots: dict[ObjectID, ObjectSnapshot] = dict()
+
+        # 1. Load all the snapshots and create records.
+        for record in store.read_extended_records("snapshots"):
+            type_name = cast(str, record["type"])
+            object_type = metamodel.type_by_name(type_name)
+            structural_type = object_type.structural_type_name
+
+            match structural_type:
+                case "node": 
+                    snapshot = Node.from_record(metamodel=metamodel,
+                                                record=record)
+                case "edge":
+                    snapshot = Edge.from_record(metamodel=metamodel,
+                                                record=record)
+                case _: raise Exception(f"Unknown structural type: {structural_type}")
+
+            snapshots[snapshot.snapshot_id] = snapshot
+
+        for record in store.read_extended_records("frames"):
+            frame_id: VersionID = cast(int, record["frame_id"]) 
+            ids: list[VersionID] = cast(list[int], record["snapshots"]) 
+
+            frame = self.create_frame(version=frame_id)
+        
+            for id in ids:
+                snapshot = snapshots[id]
+                # We insert a snapshot to the frame and make it non-owned. The
+                # frame will be closed immediately and made stable (not-mutable)
+                frame.insert(snapshot, owned=False)
+
+            self.accept(frame)
+        pass
+
+
+    def save(self, store: PersistentStore):
+        """
+        Dump the design into the persistent store, replacing the existing
+        design in the store.
+
+        .. note::
+            This is a preliminary and straightforward implementaiton of
+            persistence. It will likely change in the future.
+
+        .. note::
+
+            This is actually a data structure and data model transformation
+            method: it transforms from in-memory transactional model into an
+            external relational model.
+        """
+        # NOTE: Keep this method in-sync with _initialize_from_store()
+
+        info: PersistentRecord = PersistentRecord()
+
+        info["version"] = "0.0.1"
+
+        store.write_info_record(info)
+
+        # What we are going to store:
+
+        snapshots: list[ExtendedPersistentRecord] = list()
+        frames: list[ExtendedPersistentRecord] = list()
+
+        # 1. Write snapshots
+        # ----------------
+
+        for obj in self.snapshots:
+            record = obj.persistent_record()
+            snapshots.append(record)
+
+        # 1. Write snapshots
+        # ----------------
+
+        for frame in self.frames:
+            ids: list[SnapshotID] = list(obj.id for obj in frame.snapshots)
+            frame_record = ExtendedPersistentRecord()
+            frame_record["frame_id"] = frame.version
+            frame_record["snapshots"] = ids
+            frames.append(frame_record)
+
+        store.write_extended_records("snapshots", snapshots)
+        store.write_extended_records("frames", frames)
+
+        # Here the store is expected to have:
+        #
+        # - info
+        # - snapshots
+        # - frames
+
+        store.close()
+
+
+    def clear(self):
+        """Clearsthe whole memory, removing all objects.
+
+        .. note::
+
+            Intent of this method is to satisfy loading of the memory from a
+            store. 
+            
+        """
+        pass
     
     @property
     def frames(self) -> Iterable[StableFrame]:
@@ -103,6 +240,16 @@ class ObjectMemory:
         """
         return self._stable_frames[version]
 
+    @property
+    def snapshots(self) -> Iterable[ObjectSnapshot]:
+        """All snapshots contained in stable frames of the memory."""
+        seen: set[SnapshotID] = set()
+        for frame in self._stable_frames.values():
+            for snapshot in frame.snapshots:
+                if snapshot.id in seen:
+                    continue
+                seen.add(snapshot.id)
+                yield snapshot
 
     @property
     def current_version(self) -> VersionID:
@@ -164,10 +311,10 @@ class ObjectMemory:
 
         if version is not None:
             assert not self.contains_version(version)
-            self.version_id_generator.mark_used(version)
+            self.identity_generator.mark_used(version)
             actual_version = version
         else:
-            actual_version = self.version_id_generator.next()
+            actual_version = self.identity_generator.next()
 
         frame = MutableFrame(memory=self,
                              version=actual_version)
@@ -206,10 +353,10 @@ class ObjectMemory:
 
         if version is not None:
             assert not self.contains_version(version)
-            self.version_id_generator.mark_used(version)
+            self.identity_generator.mark_used(version)
             actual_version = version
         else:
-            actual_version = self.version_id_generator.next()
+            actual_version = self.identity_generator.next()
 
         original = self._stable_frames[actual_original_version]
 

@@ -1,7 +1,7 @@
 from .model import Metamodel
 from .model import ExpressionComponent
-from ..db.transaction import MutableUnboundGraph
-from ..db import Database
+from ..db.mutable_frame import MutableUnboundGraph
+from ..db import ObjectMemory
 from ..flows import Compiler, EulerSolver
 
 
@@ -65,11 +65,11 @@ def predator_prey_demo(steps: int):
     assert steps >= 1, \
             "Number of steps should be greater or equal than 1"
 
-    db = Database()
-    trans = db.create_transaction()
-    create_predator_prey(trans.graph)
+    db = ObjectMemory()
+    frame = db.derive_frame()
+    create_predator_prey(frame.mutable_graph)
 
-    compiler = Compiler(trans)
+    compiler = Compiler(frame)
     
     compiled = compiler.compile()
 

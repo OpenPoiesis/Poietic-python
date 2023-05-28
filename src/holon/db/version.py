@@ -4,15 +4,12 @@
 # Date: 2023-03-30
 #
 
-from typing import TypeAlias
 from enum import Enum, auto
 
 __all__ = [
-    "VersionID",
     "VersionState",
 ]
 
-VersionID: TypeAlias = int
 
 class VersionState(Enum):
     """

@@ -5,7 +5,8 @@
 # Created by: Stefan Urbanek
 # Date: 2023-04-01
 
-from typing import ClassVar
+from dataclasses import dataclass, field
+from typing import ClassVar, cast, Type
 
 from ..graph.predicate import \
         NodePredicate, \
@@ -20,10 +21,14 @@ from ..graph import EdgeDirection
 
 from ..graph import NeighborhoodSelector
 
-from ..db import Component, ObjectType, ObjectSnapshot
+from ..metamodel import MetamodelBase
+from ..db import Component, PersistableComponent, ObjectType
 from ..graph import Edge, Node
 from ..attributes import AttributeReference
+from ..persistence.store import PersistentRecord
 from ..db.constraints import UniqueAttribute, NodeConstraint
+from ..value import Point
+
 
 __all__ = [
     "Metamodel",
@@ -57,14 +62,30 @@ class EdgeQuery:
 # Components
 # --------------------------------------------------------------------------
 
-class PositionComponent(Component):
+@dataclass
+class PositionComponent(PersistableComponent):
     """Component containing position within the design canvas."""
     component_name: ClassVar[str] = "Position"
 
-    position: tuple[float, float]
+    position: Point
     """Location of the design object within its design canvas."""
 
-class DescriptionComponent(Component):
+    @classmethod
+    def from_record(cls, record: PersistentRecord) -> "PositionComponent":
+        x: float = cast(float, record.get("x", 0.0))
+        y: float = cast(float, record.get("y", 0.0))
+        return cls(Point(x, y))
+
+    def persistent_record(self) -> PersistentRecord:
+        record = PersistentRecord()
+
+        record["x"] = self.position.x
+        record["y"] = self.position.y
+
+        return record
+
+@dataclass
+class DescriptionComponent(PersistableComponent):
     """Component containing human-targeted object description. Designer
     stores more detailed information in this component.
     """
@@ -72,6 +93,18 @@ class DescriptionComponent(Component):
 
     description: str
     """Human-readable textual description of the associated design object."""
+
+    @classmethod
+    def from_record(cls, record: PersistentRecord) -> "DescriptionComponent":
+        desc: str = cast(str, record.get("description", ""))
+        return cls(desc)
+
+    def persistent_record(self) -> PersistentRecord:
+        record = PersistentRecord()
+
+        record["description"] = self.description
+
+        return record
 
 class ErrorComponent(Component):
     """Component cotnaining list of compilation/interpretation errors related
@@ -86,24 +119,38 @@ class ErrorComponent(Component):
 # Specific components
 #
 
-class FlowComponent(Component):
+@dataclass
+class FlowComponent(PersistableComponent):
     """Component for flow nodes."""
     component_name: ClassVar[str] = "Flow"
 
-    priority: int
+    priority: int = 0
     """Flow priority for evaluation of non-negative stock outflows."""
 
+    @classmethod
+    def from_record(cls, record: PersistentRecord) -> "FlowComponent":
+        priority: int = cast(int, record.get("priority", 0))
 
-class StockComponent(Component):
+        return cls(priority)
+
+    def persistent_record(self) -> PersistentRecord:
+        record = PersistentRecord()
+
+        record["priority"] = self.priority
+
+        return record
+
+@dataclass
+class StockComponent(PersistableComponent):
     component_name: ClassVar[str] = "Stock"
 
-    allows_negative: bool
+    allows_negative: bool = False
     """
     Flag whether the stock allows non-negative value. If `False` then the
     stock value is constrained to be >= 0. This affects the evaluation.
     """
 
-    delayed_inflow: bool
+    delayed_inflow: bool = False
     """
     Flag wether the inflow will be delayed during evaluation.
 
@@ -111,25 +158,48 @@ class StockComponent(Component):
     stocks - that is when an outflow of a stock results in an inflow of the same stock
     through a chain of of other flows.
     """
-    def __init__(self, allows_negative: bool = False,
-                 delayed_inflow: bool = False):
-        self.allows_negative = allows_negative
-        self.delayed_inflow = delayed_inflow
 
-class ExpressionComponent(Component):
+    @classmethod
+    def from_record(cls, record: PersistentRecord) -> "StockComponent":
+        allows_negative: bool = cast(bool, record.get("allows_negative", False))
+        delayed_inflow: bool = cast(bool, record.get("delayed_inflow", False))
+        return cls(allows_negative, delayed_inflow)
+
+    def persistent_record(self) -> PersistentRecord:
+        record = PersistentRecord()
+
+        record["allows_negative"] = self.allows_negative
+        record["delayed_inflow"] = self.delayed_inflow
+
+        return record
+
+
+
+@dataclass
+class ExpressionComponent(PersistableComponent):
     """Core component containing the arithemtic expression for a node."""
 
     component_name: ClassVar[str] = "Expression"
 
-    name: str
+    name: str = "unnamed"
     """Name of the node that is used in arithmetic expressions."""
-    expression: str
+    expression: str = "0"
 
     """Arithmetic expression of the node."""
 
-    def __init__(self, name: str, expression: str):
-        self.name = name
-        self.expression = expression
+    @classmethod
+    def from_record(cls, record: PersistentRecord) -> "ExpressionComponent":
+        name: str = cast(str, record.get("name", "unnamed"))
+        expression: str = cast(str, record.get("expression", "0"))
+        return ExpressionComponent(name, expression)
+       
+    def persistent_record(self) -> PersistentRecord:
+        record = PersistentRecord()
+
+        record["name"] = self.name
+        record["expression"] = self.expression
+
+        return record
 
 
 # Flows Meta Model
@@ -140,7 +210,7 @@ class ExpressionComponent(Component):
 # TODO: Add edge endpoint type constraints
 # TODO: Add dimension
 
-class Metamodel:
+class Metamodel(MetamodelBase):
     """A singleton object describing the details of the Stocks and Flows domain
     model.
 
@@ -170,6 +240,15 @@ class Metamodel:
         models from external sources.
 
     """
+
+    components: list[Type[Component]] = [
+        PositionComponent,
+        DescriptionComponent,
+        ErrorComponent,
+        FlowComponent,
+        StockComponent,
+        ExpressionComponent,
+    ]
 
 
     Stock = ObjectType(

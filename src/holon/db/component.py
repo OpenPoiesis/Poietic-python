@@ -3,7 +3,11 @@
 # Created by: Stefan Urbanek
 # Date: 2023-03-30
 #
-from typing import Type, Optional, TypeVar, cast, Protocol
+from typing import Type, Optional, TypeVar, cast, Protocol, Self, ClassVar, \
+        Iterator
+from abc import abstractmethod
+
+from ..persistence.store import PersistentRecord
 
 class Component(Protocol):
     """Protocol for object components.
@@ -24,6 +28,34 @@ class Component(Protocol):
           systems using the objects as they need it
     """
     pass
+
+class PersistableComponent(Component):
+    """Component that is stored in the persistent store."""
+
+    component_name: ClassVar[str]
+    
+    @classmethod
+    @abstractmethod
+    def from_record(cls, record: PersistentRecord) -> Self:
+        """
+        Create a new instance of the component from the persistent record.
+        If a component property is not present in the record it will be
+        supplied by a default value of a concrete component subclass.
+
+        Default implementation raises an exception.
+        """
+        raise NotImplementedError("Subclasses of PersistableComponent are required to implement from_record()")
+
+    @abstractmethod
+    def persistent_record(self) -> PersistentRecord:
+        """
+        Returns a persistent record representing the persistable component.
+        Subclasses of `PersistableComponent` are expected to provide all
+        persistable attributes in the persistent record.
+
+        Default implementation returns an empty record.
+        """
+        return PersistentRecord({})
 
 
 C = TypeVar("C", bound=Component)
@@ -49,6 +81,7 @@ class ComponentSet:
     def remove(self, component_type: Type[Component]):
         del self._components[component_type]
 
+
     def remove_all(self):
         self._components.clear()
 
@@ -60,6 +93,20 @@ class ComponentSet:
     def as_list(self) -> list[Component]:
         return list(self._components.values())
 
+    @property
+    def persistable_components(self) -> dict[str, PersistableComponent]:
+        """Get a mapping of persistable components. The key is the component
+        name and the value is the component itself."""
+        components: dict[str, PersistableComponent] = dict()
+        for component in self._components.values():
+            if not isinstance(component, PersistableComponent):
+                continue
+            name = component.component_name
+            components[name] = component
+
+        return components
+            
+
     def has(self, component_type: Type[Component]) -> bool:
         """Returns `true` when the component `component_type` is present."""
         return component_type in self._components
@@ -68,3 +115,8 @@ class ComponentSet:
         comp_list = ", ".join(str(key.__name__) for key in self._components.keys())
         return f"[{comp_list}]"
 
+    def __len__(self) -> int:
+        return len(self._components)
+
+    def __iter__(self) -> Iterator[Component]:
+        return iter(self._components.values())

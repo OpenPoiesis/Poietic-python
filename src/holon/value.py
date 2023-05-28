@@ -7,6 +7,7 @@
 
 from enum import Enum, auto
 from collections import namedtuple
+from typing import Any
 
 __all__ = [
     "Point",
@@ -83,6 +84,8 @@ def value_type(value: ValueProtocol) -> ValueType:
 
     if isinstance(value, bool):
         return ValueType.BOOL
+    elif isinstance(value, int):
+        return ValueType.INT
     elif isinstance(value, float):
         return ValueType.FLOAT
     elif isinstance(value, str):

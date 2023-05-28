@@ -7,14 +7,13 @@
 # TODO: IMPORTANT: .object(id) should raise IdentityError
 
 from typing import Optional, Iterator, TYPE_CHECKING, Protocol
-from .version import VersionID, VersionState
-from .object import ObjectID, ObjectSnapshot
+
 from ..errors import IDError
 
+from .version import VersionState
+from .object import ObjectSnapshot
+from .identity import ObjectID, VersionID
 
-if TYPE_CHECKING:
-    from .database import ObjectMemory
-    from .mutable_frame import MutableFrame
 
 __all__ = [
     "FrameBase",

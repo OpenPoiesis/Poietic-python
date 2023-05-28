@@ -12,7 +12,6 @@ from .component import Component
 
 if TYPE_CHECKING:
     from .object import ObjectSnapshot
-    from ..graph import Edge
 
 
 __all__ = [
@@ -58,6 +57,13 @@ class ObjectType:
         self.name = name
         self.component_types = component_types or list()
         self.structural_type = structural_type
+
+    @property
+    def structural_type_name(self) -> str:
+        if self.structural_type is not None:
+            return self.structural_type.structural_type_name
+        else:
+            return "object"
 
 
 class EdgeType(ObjectType):

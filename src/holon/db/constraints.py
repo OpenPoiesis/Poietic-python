@@ -6,16 +6,18 @@
 # Date: 2023-04-17
 #
 
+from typing import Optional, cast, Iterable, Protocol
+from abc import abstractmethod
+
 from ..graph import Graph, Edge, Node, EdgeDirection
 from ..graph import NodePredicate, EdgePredicate
-from .object import ObjectID, ObjectSnapshot
 from ..value import ValueProtocol
-from .object_type import ObjectType 
 from ..attributes import AttributeReference
 
-from typing import Optional, cast, Iterable, Protocol
+from .identity import ObjectID
+from .object import ObjectSnapshot
+from .object_type import ObjectType 
 
-from abc import abstractmethod
 
 """
 

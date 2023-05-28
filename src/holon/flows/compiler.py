@@ -4,19 +4,18 @@
 # Date: 2023-04-01
 
 from typing import Optional
-from ..db import ObjectID, MutableFrame
-from ..graph import Graph, Node, Edge
-from ..db import MutableUnboundGraph
 from collections import defaultdict
 
-from .model import StockComponent, ExpressionComponent
-from .model import Metamodel
+from ..db import ObjectID, MutableFrame
+from ..graph import MutableGraph
+from ..graph import Graph, Node, Edge
 from ..expression import *
 from ..expression.parser import ExpressionParser
 
 from .issues import CompilerError, NodeIssue
 from .functions import BuiltinFunctions
-
+from .model import StockComponent, ExpressionComponent
+from .model import Metamodel
 from .evaluate import BoundExpression, bind_expression
 
 
@@ -260,13 +259,13 @@ class Compiler:
     """Object that updates the graph with derived information and creates a
     compiled model."""
 
-    graph: MutableUnboundGraph
+    graph: MutableGraph
     transaction: MutableFrame
     view: DomainView
 
     def __init__(self, transaction: MutableFrame):
         self.transaction = transaction
-        self.graph = self.transaction.graph
+        self.graph = self.transaction.mutable_graph
         self.view = DomainView(self.graph)
 
     def compile(self) -> CompiledModel:

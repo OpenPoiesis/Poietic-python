@@ -5,7 +5,7 @@
 
 # TODO: IMPORTANT: Graph .node(id) and .edge(id) should raise IdentityError
 
-from typing import Protocol, Iterable, Optional, Self, cast, TYPE_CHECKING
+from typing import Protocol, Iterable, Optional, Self, cast, TYPE_CHECKING, Type
 from abc import abstractmethod
 from enum import Enum, auto
 
@@ -15,9 +15,11 @@ from ..db.component import Component
 from ..db.frame import FrameBase
 from ..common import first
 from ..errors import IDError
+from ..persistence.store import ExtendedPersistentRecord
 
 if TYPE_CHECKING:
     from .predicate import NodePredicate, EdgePredicate
+    from ..metamodel import MetamodelBase
 
 __all__ = [
     "Graph",
@@ -36,6 +38,8 @@ __all__ = [
 # --------------------------------------------------------------------------
 
 class Node(ObjectSnapshot):
+    structural_type_name = "node"
+
     """Structural object type representing nodes in a graph."""
     pass
 
@@ -43,10 +47,45 @@ class Node(ObjectSnapshot):
 class Edge(ObjectSnapshot):
     """Structural object type representing a directed edge in a graph."""
 
+    structural_type_name = "edge"
+
     origin: ObjectID
     """Origin endpoint (arrow tail) of the directed edge."""
     target: ObjectID
     """Target endpoint (arrow head) of the directed edge."""
+
+    @classmethod
+    def from_record(cls,
+                    metamodel: Type["MetamodelBase"],
+                    record: ExtendedPersistentRecord) -> "Edge":
+
+        id: ObjectID = cast(ObjectID, record["object_id"])
+        snapshot_id: SnapshotID = cast(SnapshotID, record["snapshot_id"])
+        origin: ObjectID = cast(SnapshotID, record["origin"])
+        target: ObjectID = cast(SnapshotID, record["target"])
+        type_name = cast(str, record["type"])
+
+        object_type = metamodel.type_by_name(type_name)
+
+        result = cls(id=id,
+                   snapshot_id=snapshot_id,
+                   origin=origin,
+                   target=target,
+                   type=object_type)
+
+        result.add_record_components(metamodel, record.components)
+
+        return result
+
+
+    def persistent_record(self) -> ExtendedPersistentRecord:
+
+        record: ExtendedPersistentRecord = super().persistent_record()
+
+        record["origin"] = self.origin
+        record["target"] = self.target
+
+        return record
 
     def __init__(self,
                  id: ObjectID,
@@ -246,11 +285,11 @@ class MutableGraph(Graph, Protocol):
         ...
 
     @abstractmethod
-    def remove_node(self, node: Node) -> list[ObjectID]:
+    def remove_node(self, node_id: ObjectID) -> list[ObjectID]:
         ...
 
     @abstractmethod
-    def remove_edge(self, edge: Edge):
+    def remove_edge(self, edge_id: ObjectID):
         ...
 
 

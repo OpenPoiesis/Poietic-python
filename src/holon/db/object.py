@@ -4,58 +4,23 @@
 # Date: 2023-03-30
 #
 
-from typing import TypeAlias, Optional, TypeVar, Type, Self
+from typing import Optional, TypeVar, Type, Self, cast, TYPE_CHECKING
 
-from .identity import ID
+from ..persistence.store import ExtendedPersistentRecord, PersistentRecord
+from ..metamodel import MetamodelBase
+
+from .identity import ObjectID, SnapshotID
 from .version import VersionState
-
 from .component import Component, ComponentSet
 from .object_type import ObjectType
 
+if TYPE_CHECKING:
+    from ..metamodel import MetamodelBase
+
 __all__ = [
-    "ObjectID",
-    "SnapshotID",
     "ObjectSnapshot",
-    "Dimension",
 ]
 
-"""Object identity type.
-
-Each design object has an unique ID within the database and might have
-multiple snapshots.
-"""
-ObjectID: TypeAlias = ID
-
-"""Object snapshot identity type.
-
-`SnapshotID` is unique within the database.
-"""
-SnapshotID: TypeAlias = ID
-
-
-class Dimension:
-    """Object dimension.
-
-    Object dimensions are used to denote system context.
-
-    Potential dimensions might be: user dimension - objects created by the
-    user, interpreter dimension - objects created by the interpreter, used by
-    the compiler, etc.
-
-    Objects dimensions are defined in the metamodel.
-
-    There should be only one instance of a dimension per metamodel. Dimensions
-    can be compared using identity comparison `is`/`is not`.
-    """
-
-    """Dimension name. Used for debug purposes."""
-    name: str
-
-    def __init__(self, name: str):
-        """Create a new dimension with name `name`."""
-        self.name = name
-
-DEFAULT_DIMENSION: Dimension = Dimension(name="%default")
 
 C = TypeVar("C", bound=Component)
 
@@ -67,6 +32,7 @@ class ObjectSnapshot:
 
     Object has an identity that is unique within a database.
     """
+    structural_type_name: str = "object"
     # TODO: Rename id to _persistent_id
     # TODO: Rename version to _persistent_version
     # TODO: Make all ids read-only, allow write only in unstable state
@@ -74,8 +40,8 @@ class ObjectSnapshot:
 
     # TODO: Make this private and expose public read-only property
     id: ObjectID
-    """Object identity that is guaranteed to be unique within an object
-    frame."""
+    """Persistent object identity that is guaranteed to be unique within an
+    object frame."""
 
     snapshot_id: SnapshotID
     """Unique identifier of the object snapshot within the database."""
@@ -86,10 +52,6 @@ class ObjectSnapshot:
     # TODO: For the time being the type is optional
     # Note: we want to allow change of type.
     type: Optional[ObjectType]
-
-    # FIXME: Do we still need this? (consider removing)
-    dimension: Dimension
-    """Dimension of the object in a graph."""
 
     components: ComponentSet
 
@@ -106,12 +68,103 @@ class ObjectSnapshot:
         self.id = id
         self.snapshot_id = snapshot_id
         self.state = VersionState.UNSTABLE
-        self.dimension = DEFAULT_DIMENSION
         self.components = ComponentSet(components)
         self.type = type
 
 
-    def derive(self, snapshot_id: SnapshotID, id: Optional[ObjectID] = None) -> Self:
+    @classmethod
+    def from_record(cls,
+                    metamodel: Type["MetamodelBase"],
+                    record: ExtendedPersistentRecord) -> "ObjectSnapshot":
+        """
+        Create an object from an extended persistent record.
+
+        The persistent record is expected to contain the following keys:
+
+        - `object_id` – will become ID of the snapshot
+        - `snapshot_id`
+        - `type` – object type name that must exist in the metamodel
+
+       
+        Subclasses overriding this method must call `add_record_components()`
+        after they are done finalizing the initialization.
+        """
+
+        # TODO: Handle errors
+        id = cast(int, record["object_id"])
+        snapshot_id = cast(int, record["snapshot_id"])
+        type_name = cast(str, record["type"])
+        
+        object_type = metamodel.type_by_name(type_name)
+
+        snapshot = cls(id=id,
+                       snapshot_id=snapshot_id,
+                       type=object_type,
+                       )
+
+        snapshot.add_record_components(metamodel, record.components)
+
+        return snapshot
+
+
+    def add_record_components(self,
+                              metamodel: Type["MetamodelBase"],
+                              records: dict[str, PersistentRecord]):
+        """
+        Add components from persistent records.
+
+
+        The keys of the dictionary are component names that must exist in the
+        metamodel.
+
+        If sublcasses override `from_record()` then they must call this method.
+
+        """
+        
+        for name, record in records.items():
+            cls = metamodel.persistable_component(name)
+            component = cls.from_record(record)
+            self.components.set(component)
+
+
+    def persistent_record(self) -> ExtendedPersistentRecord:
+        """Create a persistent record that represents the snapshot.
+
+        The keys of the records:
+
+        - `object_id`
+        - `snapshot_id`
+        - `type` – object type name
+        - `structural_type` – structural type of the object, either ``node`` or
+          ``edge`` at the moment.
+
+        """
+        record = ExtendedPersistentRecord()
+
+        record["object_id"] = self.id
+        record["snapshot_id"] = self.snapshot_id
+        if self.type is not None:
+            record["type"] = self.type.name
+        else:
+            record["type"] = "object"
+
+        # Note: Writing structural type is redundant here, because we can
+        # derive it from the metamodel. It is written here only for the
+        # convenience of the model readers if they do not have the
+        # metamodel available to them.
+
+        record["structural_type"] = self.structural_type_name
+
+        for name, component in self.components.persistable_components.items():
+            comp_record = component.persistent_record()
+            record.set_component(name, comp_record)
+
+        return record
+
+
+    def derive(self,
+               snapshot_id: SnapshotID,
+               id: Optional[ObjectID] = None) -> Self:
         """
         Derive a new object from existing object and assign it a new version
         identifier.
@@ -146,22 +199,28 @@ class ObjectSnapshot:
         obj = self.__class__(id = new_id,
                              snapshot_id = snapshot_id,
                              components = self.components.as_list() )
-        obj.dimension = self.dimension
         obj.state = VersionState.UNSTABLE
         obj.type = self.type
         return obj
 
+
     def make_transient(self):
         assert self.state == VersionState.UNSTABLE
         self.state = VersionState.TRANSIENT
+
 
     def freeze(self):
         # We can freeze an object in any state. Freezing already frozen object
         # does nothing.
         self.state = VersionState.FROZEN
 
+
     def __getitem__(self, key: Type[C]) -> C:
         return self.components.get(key)
+
+    def __setitem__(self, key: Type[C], value: C):
+        # TODO: This is weird, we do not need key here
+        self.components.set(value)
 
     def structural_dependencies(self) -> list[ObjectID]:
         """Return objects that structurally depend on the receiver.

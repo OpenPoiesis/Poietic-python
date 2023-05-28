@@ -7,10 +7,13 @@ from holon.db.constraints import \
         EdgeEndpointType
 
 from holon.db import ObjectMemory
+from holon.db.mutable_frame import MutableUnboundGraph
 
 from .common import NodeTypeA, NodeTypeB, EdgeTypeA
 
 class ConstraintsTestCase(unittest.TestCase):
+    graph: MutableUnboundGraph
+
     def setUp(self):
         self.db = ObjectMemory()
         self.transaction = self.db.derive_frame()

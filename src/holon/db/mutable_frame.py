@@ -4,17 +4,19 @@
 # Date: 2023-03-30
 #
 
-from typing import Optional, TypeVar, Iterator, Iterable, Tuple
+from typing import Optional, TypeVar, Iterator, Iterable
 from typing import TYPE_CHECKING
 from collections import namedtuple
 
-from .version import VersionID, VersionState
-from .object import ObjectID, ObjectSnapshot, SnapshotID
+from ..graph import MutableGraph, Node, Edge
+from ..errors import IDError
+
+from .identity import VersionID, ObjectID, SnapshotID
+from .version import VersionState
+from .object import ObjectSnapshot
 from .object_type import ObjectType
 from .frame import FrameBase
 from .component import Component
-from ..graph import MutableGraph, Node, Edge
-from ..errors import IDError
 
 if TYPE_CHECKING:
     from .database import ObjectMemory
@@ -168,8 +170,8 @@ class MutableFrame(FrameBase):
             advised to use it at the moment. Create an object externally and insert
             it using the `insert(method)`.
         """
-        actual_id = self.memory.object_id_generator.next()
-        snapshot_id = self.memory.snapshot_id_generator.next()
+        actual_id = self.memory.identity_generator.next()
+        snapshot_id = self.memory.identity_generator.next()
 
         new_object = ObjectSnapshot(id=actual_id,
                                 snapshot_id=snapshot_id)
@@ -202,12 +204,12 @@ class MutableFrame(FrameBase):
         assert (self.state.is_mutable), \
                 f"Trying to modify accepted frame (id: {self.version})"
 
-        actual_id = id or self.memory.object_id_generator.next()
-        snapshot_id = self.memory.snapshot_id_generator.next()
+        actual_id = id or self.memory.identity_generator.next()
+        snapshot_id = self.memory.identity_generator.next()
 
         derived = original.derive(snapshot_id=snapshot_id, id=actual_id)
 
-        self.insert(derived)
+        self.insert(derived, owned=True)
         self._derived_objects[actual_id] = derived
     
         return actual_id
@@ -235,14 +237,14 @@ class MutableFrame(FrameBase):
 
         # Note: I did it this way because the type inference for tuple was not
         # working and I wanted it to be have correctly.
-        tup: Tuple[ObjectSnapshot, bool] = self._snapshots[id]
-        original: ObjectSnapshot = tup[0]
-        owned: bool = tup[1]
+        ref = self._snapshots[id]
+        original: ObjectSnapshot = ref.snapshot
+        owned: bool = ref.owned
 
         assert not owned, \
                  "Trying to derive already derived object"
 
-        snapshot_id = self.memory.snapshot_id_generator.next()
+        snapshot_id = self.memory.identity_generator.next()
 
         derived = original.derive(snapshot_id=snapshot_id)
         self._snapshots[id] = FrameSnapshotReference(snapshot=derived,

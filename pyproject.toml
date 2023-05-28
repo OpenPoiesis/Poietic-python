@@ -31,7 +31,7 @@ dependencies = [
 flow = "holon.tool:tool_main"
 
 [tool.pyright]
-exclude = ["build", "dist"]
+exclude = ["build", "dist", "sandbox"]
 
 [tool.mypy]
 
