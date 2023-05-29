@@ -126,7 +126,9 @@ class ObjectMemory:
 
         snapshots: dict[ObjectID, ObjectSnapshot] = dict()
 
-        # 1. Load all the snapshots and create records.
+        # 1. Load and create all snapshots
+        # -------------------------------------------------------------------
+
         for record in store.read_extended_records("snapshots"):
             type_name = cast(str, record["type"])
             object_type = metamodel.type_by_name(type_name)
@@ -141,7 +143,13 @@ class ObjectMemory:
                                                 record=record)
                 case _: raise Exception(f"Unknown structural type: {structural_type}")
 
+            # All persisted snapshots are frozen snapshots and can not be
+            # mutated any further.
+            snapshot.freeze()
             snapshots[snapshot.snapshot_id] = snapshot
+
+        # 2. Load and create frames
+        # -------------------------------------------------------------------
 
         for record in store.read_extended_records("frames"):
             frame_id: VersionID = cast(int, record["frame_id"]) 
@@ -156,8 +164,22 @@ class ObjectMemory:
                 frame.insert(snapshot, owned=False)
 
             self.accept(frame)
-        pass
 
+        # 3. Load history
+        # -------------------------------------------------------------------
+        records = store.read_extended_records("framesets")
+        history_record: Optional[PersistentRecord] = None
+        for record in records:
+            if record["name"] == "history":
+                history_record = record
+                break
+        if history_record is not None:
+            ids = cast(list[int], history_record["frames"])
+            self.version_history = ids
+        else:
+            # TODO: Issue a warning that we are missing history.
+            self.version_history = list()
+            
 
     def save(self, store: PersistentStore):
         """
@@ -186,26 +208,40 @@ class ObjectMemory:
 
         snapshots: list[ExtendedPersistentRecord] = list()
         frames: list[ExtendedPersistentRecord] = list()
+        framesets: list[ExtendedPersistentRecord] = list()
 
-        # 1. Write snapshots
-        # ----------------
+        # 1. Write Snapshots
+        # -------------------------------------------------------------------
 
         for obj in self.snapshots:
             record = obj.persistent_record()
             snapshots.append(record)
 
-        # 1. Write snapshots
-        # ----------------
+        # 2. Write Frames
+        # -------------------------------------------------------------------
 
         for frame in self.frames:
-            ids: list[SnapshotID] = list(obj.id for obj in frame.snapshots)
+            ids: list[SnapshotID] = list(obj.snapshot_id for obj in frame.snapshots)
             frame_record = ExtendedPersistentRecord()
             frame_record["frame_id"] = frame.version
             frame_record["snapshots"] = ids
             frames.append(frame_record)
 
+
+        # 3. Write Framesets
+        # -------------------------------------------------------------------
+        # We are currently writing only one frameset: the default history
+        history_record = ExtendedPersistentRecord()
+        history_record["name"] = "history"
+        history_record["frames"] = self.version_history
+        framesets.append(history_record)
+
+        # Final: Write Framesets
+        # -------------------------------------------------------------------
         store.write_extended_records("snapshots", snapshots)
         store.write_extended_records("frames", frames)
+        store.write_extended_records("framesets", framesets)
+
 
         # Here the store is expected to have:
         #

@@ -202,13 +202,13 @@ class JSONStore(PersistentStore):
     """Aggregate result to be written. This simple store holds it all in memory
     before writing it out."""
 
-    def __init__(self, path: str, writing: bool):
+    def __init__(self, path: str, writting: bool):
         """Create a new store at given path."""
         self.path = path
         self._result = dict()
-        self.is_writing = writing
+        self.is_writing = writting
 
-        if not writing:
+        if not writting:
             with open(path) as f:
                 self._result = json.load(f)
 
@@ -220,22 +220,19 @@ class JSONStore(PersistentStore):
 
     def _named_collection(self, name: str) -> list[dict[str, Any]]:
         cont_name: str
-        # NOTE: The match below is a remnant from when `name` was `type_name`
         # TODO: Good for now. This emulates existence of a DB schema.
-        match name:
-            case "snapshots": cont_name = "snapshots"
-            case "frames": cont_name = "frames"
-            case _: raise Exception(f"Unknown container type: {name}")
+        if name not in ["snapshots", "frames", "framesets"]:
+            raise Exception(f"Unknown container type: {name}")
 
-        cont: list[dict[str, Any]]
+        collection: list[dict[str, Any]]
 
         try:
-            cont = self._result[cont_name]
+            collection = self._result[name]
         except KeyError:
-            cont = list()
-            self._result[cont_name] = cont
+            collection = list()
+            self._result[name] = collection
 
-        return cont
+        return collection
 
     def write_extended_records(self, type_name: str,
                               records: list[ExtendedPersistentRecord]):
@@ -268,9 +265,9 @@ class JSONStore(PersistentStore):
         collection = self._named_collection(type_name)
 
         json_components: dict[str, Any] = dict()
-        components: dict[str, PersistentRecord] = dict()
 
         for json_record in collection:
+            components: dict[str, PersistentRecord] = dict()
             if "components" in json_record:
                 json_components = json_record["components"]
                 del json_record["components"]

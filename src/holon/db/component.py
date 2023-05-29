@@ -120,3 +120,9 @@ class ComponentSet:
 
     def __iter__(self) -> Iterator[Component]:
         return iter(self._components.values())
+
+    def __eq__(self, other: Self) -> bool:
+        if type(other) != type(self):
+            return False
+
+        return self._components == other._components

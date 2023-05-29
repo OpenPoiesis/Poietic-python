@@ -229,3 +229,23 @@ class ObjectSnapshot:
         """
         return []
 
+    def __eq__(self, other: Self) -> bool:
+        if type(other) != type(self):
+            return False
+
+        return self.id == other.id \
+                and self.snapshot_id == other.snapshot_id \
+                and self.state == other.state \
+                and self.type == other.type \
+                and self.components == other.components
+
+    def __str__(self) -> str:
+        str_type: str = str(self.structural_type_name)
+        if self.type:
+            obj_type: str = self.type.name
+        else:
+            obj_type = "none"
+        compstr = ", ".join(str(c) for c in self.components)
+
+        return f"{str_type}({self.id},{self.snapshot_id},{obj_type},components={compstr})"
+

@@ -17,6 +17,13 @@ from holon.db.component import PersistableComponent
 from holon.graph import Node, Edge
 
 from holon.persistence.store import PersistentRecord, ExtendedPersistentRecord
+from holon.persistence.store import JSONStore
+
+from holon.db import ObjectMemory, MutableFrame
+from holon.db import MutableUnboundGraph
+
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 @dataclass
@@ -62,6 +69,12 @@ class Metamodel(MetamodelBase):
             component_types=[
             ])
 
+    Arrow = ObjectType(
+            name="Arrow",
+            structural_type = Edge,
+            component_types=[
+            ])
+
 
 class TestMetamodel(unittest.TestCase):
     def test_get_type(self):
@@ -72,10 +85,10 @@ class TestMetamodel(unittest.TestCase):
     def test_get_all_types(self):
         names = Metamodel.all_type_names
 
-        self.assertEqual(set(names), set(["Stock", "Flow", "Parameter"]))
+        self.assertEqual(set(names), set(["Stock", "Flow", "Parameter", "Arrow"]))
 
 
-class TestPersistence(unittest.TestCase):
+class TestPersistentRecord(unittest.TestCase):
     def test_from_record_node(self):
         record = ExtendedPersistentRecord({
                 "object_id": 10,
@@ -122,3 +135,88 @@ class TestPersistence(unittest.TestCase):
                                                          record=record)
 
         self.assertEqual(TestComponent(10), obj[TestComponent])
+
+
+class TestPersistentStore(unittest.TestCase):
+    db: ObjectMemory
+    frame: MutableFrame
+
+    def setUp(self):
+        self.db = ObjectMemory()
+        self.frame = self.db.derive_frame()
+        self.graph = MutableUnboundGraph(self.frame)
+
+        flow = self.graph.create_node(Metamodel.Flow,
+                               [TestComponent(value=10)])
+        source = self.graph.create_node(Metamodel.Stock,
+                               [TestComponent(value=20)])
+        sink = self.graph.create_node(Metamodel.Stock,
+                               [TestComponent(value=30)])
+
+        self.graph.create_edge(Metamodel.Arrow, source, flow)
+        self.graph.create_edge(Metamodel.Arrow, flow, sink)
+        self.db.accept(self.frame)
+
+    def test_restore(self):
+        tmpdir = TemporaryDirectory()
+       
+        path = Path(tmpdir.name) / "db.json"
+
+        save_store = JSONStore(str(path), writting=True)
+        self.db.save(save_store)
+
+        load_store = JSONStore(str(path), writting=False)
+        restored = ObjectMemory(metamodel=Metamodel,
+                                store=load_store)
+        self.assertEqual(len(list(self.db.snapshots)),
+                         len(list(restored.snapshots)))
+
+        other_frame = restored.frame(self.frame.version)
+
+        for snapshot in self.frame.snapshots:
+            other = other_frame.object(snapshot.id)
+            if snapshot != other:
+                # import pdb; pdb.set_trace()
+                pass
+
+            self.assertEqual(snapshot, other)
+
+        tmpdir.cleanup()
+
+    def test_restore_history(self):
+        frame = self.db.derive_frame()
+        graph = MutableUnboundGraph(frame)
+        node = graph.create_node(Metamodel.Stock,
+                                [TestComponent(value=100)])
+        self.db.accept(frame)
+        frame = self.db.derive_frame()
+        frame.remove_cascading(node)
+        self.db.accept(frame)
+
+        # Create a frame that will not be part of the history
+        frame = self.db.derive_frame()
+        self.db.accept(frame, append_history=False)
+
+        # Sanity check
+        all_versions = self.db.all_versions
+        self.assertEqual(len(all_versions), 5)
+
+        tmpdir = TemporaryDirectory()
+        path = Path(tmpdir.name) / "db.json"
+
+        save_store = JSONStore(str(path), writting=True)
+        self.db.save(save_store)
+
+        load_store = JSONStore(str(path), writting=False)
+        restored = ObjectMemory(metamodel=Metamodel,
+                                store=load_store)
+
+        self.assertEqual(self.db.all_versions,
+                         restored.all_versions)
+
+        self.assertEqual(self.db.version_history,
+                         restored.version_history)
+
+        tmpdir.cleanup()
+
+        
