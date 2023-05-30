@@ -19,7 +19,7 @@ def create_demo():
     create_predator_prey(frame.mutable_graph)
     mem.accept(frame)
 
-    store = JSONStore("demo.json", writing=True)
+    store = JSONStore("demo.json", writting=True)
     mem.save(store)
 
 
