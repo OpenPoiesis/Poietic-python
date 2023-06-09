@@ -1,7 +1,7 @@
 import unittest
 
-from holon.expression.parser import ExpressionParser
-from holon.flows.evaluate import bind_expression, evaluate_expression
+from poietic.expression.parser import ExpressionParser
+from poietic.flows.evaluate import bind_expression, evaluate_expression
 
 class EvaluationTestCase(unittest.TestCase):
     def test_evaluateLiteral(self):

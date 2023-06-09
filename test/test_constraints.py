@@ -1,13 +1,13 @@
 import unittest
 
-from holon.db import ObjectSnapshot
-from holon.db.constraints import \
+from poietic.db import ObjectSnapshot
+from poietic.db.constraints import \
         Constraint, \
         UniqueAttribute, \
         EdgeEndpointType
 
-from holon.db import ObjectMemory
-from holon.db.mutable_frame import MutableUnboundGraph
+from poietic.db import ObjectMemory
+from poietic.db.mutable_frame import MutableUnboundGraph
 
 from .common import NodeTypeA, NodeTypeB, EdgeTypeA
 

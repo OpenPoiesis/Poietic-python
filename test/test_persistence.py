@@ -10,17 +10,17 @@ import unittest
 from dataclasses import dataclass
 from typing import cast, ClassVar
 
-from holon.metamodel import MetamodelBase
-from holon.db.object_type import ObjectType
-from holon.db.object import ObjectSnapshot
-from holon.db.component import PersistableComponent
-from holon.graph import Node, Edge
+from poietic.metamodel import MetamodelBase
+from poietic.db.object_type import ObjectType
+from poietic.db.object import ObjectSnapshot
+from poietic.db.component import PersistableComponent
+from poietic.graph import Node, Edge
 
-from holon.persistence.store import PersistentRecord, ExtendedPersistentRecord
-from holon.persistence.store import JSONStore
+from poietic.persistence.store import PersistentRecord, ExtendedPersistentRecord
+from poietic.persistence.store import JSONStore
 
-from holon.db import ObjectMemory, MutableFrame
-from holon.db import MutableUnboundGraph
+from poietic.db import ObjectMemory, MutableFrame
+from poietic.db import MutableUnboundGraph
 
 from pathlib import Path
 from tempfile import TemporaryDirectory

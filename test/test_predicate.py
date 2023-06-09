@@ -7,15 +7,15 @@
 
 import unittest
 
-from holon.flows import Metamodel, ExpressionComponent
+from poietic.flows import Metamodel, ExpressionComponent
 
-from holon.db import ObjectMemory, MutableFrame
-from holon.db import MutableUnboundGraph
+from poietic.db import ObjectMemory, MutableFrame
+from poietic.db import MutableUnboundGraph
 
-from holon.db import Component
-from holon.db import ObjectSnapshot
-from holon.db import MutableFrame
-from holon.graph import HasComponentPredicate
+from poietic.db import Component
+from poietic.db import ObjectSnapshot
+from poietic.db import MutableFrame
+from poietic.graph import HasComponentPredicate
 
 
 class TestComponent(Component):

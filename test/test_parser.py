@@ -1,8 +1,8 @@
 import unittest
 
-from holon.expression.parser import Lexer, TokenType, ParserError
-from holon.expression.parser import ExpressionParser, SyntaxError
-from holon.expression import \
+from poietic.expression.parser import Lexer, TokenType, ParserError
+from poietic.expression.parser import ExpressionParser, SyntaxError
+from poietic.expression import \
         ValueExpressionNode, \
         VariableExpressionNode, \
         BinaryExpressionNode, \

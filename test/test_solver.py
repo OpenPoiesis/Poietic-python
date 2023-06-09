@@ -1,11 +1,11 @@
 import unittest
 
-from holon.db import ObjectMemory, MutableFrame
-from holon.db import MutableUnboundGraph
-from holon.flows import Compiler
-from holon.flows.solver import Solver
-from holon.flows import Metamodel
-from holon.flows import ExpressionComponent
+from poietic.db import ObjectMemory, MutableFrame
+from poietic.db import MutableUnboundGraph
+from poietic.flows import Compiler
+from poietic.flows.solver import Solver
+from poietic.flows import Metamodel
+from poietic.flows import ExpressionComponent
 
 class SolverTestCase(unittest.TestCase):
     db: ObjectMemory

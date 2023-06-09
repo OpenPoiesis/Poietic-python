@@ -6,9 +6,9 @@
 # Date: 2023-04-01
 #
 
-from holon.db.component import Component
-from holon.db.object_type import ObjectType
-from holon.graph import Node, Edge
+from poietic.db.component import Component
+from poietic.db.object_type import ObjectType
+from poietic.graph import Node, Edge
 
 class TestComponent(Component):
     text: str

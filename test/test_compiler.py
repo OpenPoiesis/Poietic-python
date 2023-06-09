@@ -1,12 +1,12 @@
 import unittest
 
-from holon.db import ObjectMemory, MutableFrame, ObjectID
-from holon.db import MutableUnboundGraph
+from poietic.db import ObjectMemory, MutableFrame, ObjectID
+from poietic.db import MutableUnboundGraph
 
-from holon.flows import Compiler, CompilerError, NodeIssueType
-from holon.flows import DomainView
-from holon.flows import Metamodel
-from holon.flows import ExpressionComponent
+from poietic.flows import Compiler, CompilerError, NodeIssueType
+from poietic.flows import DomainView
+from poietic.flows import Metamodel
+from poietic.flows import ExpressionComponent
 
 class TestDomainView(unittest.TestCase):
     db: ObjectMemory

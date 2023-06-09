@@ -1,6 +1,6 @@
-from holon.db import ObjectMemory
-from holon.db import VersionID, VersionState
-from holon.db import Component
+from poietic.db import ObjectMemory
+from poietic.db import VersionID, VersionState
+from poietic.db import Component
 
 import unittest
 

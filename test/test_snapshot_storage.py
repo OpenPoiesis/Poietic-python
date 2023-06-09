@@ -1,5 +1,5 @@
-from holon.db import ObjectMemory
-from holon.db import ObjectSnapshot
+from poietic.db import ObjectMemory
+from poietic.db import ObjectSnapshot
 
 import unittest
 
